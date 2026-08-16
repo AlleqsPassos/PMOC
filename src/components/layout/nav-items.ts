@@ -74,7 +74,6 @@ export const primaryNavItems: NavItem[] = [
     label: "PMOC",
     icon: FileCheck2,
     requiredPermission: "generate_pmoc",
-    comingSoon: true,
   },
 ];
 

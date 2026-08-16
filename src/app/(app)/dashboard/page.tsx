@@ -5,6 +5,7 @@ import { getCurrentCompany } from "@/features/companies/queries";
 import { countEquipment } from "@/features/equipment/queries";
 import { countUrgentOpenTickets } from "@/features/tickets/queries";
 import { countActivePreventivePlans } from "@/features/preventive-plans/queries";
+import { countGeneratedPmocs } from "@/features/pmoc/queries";
 import {
   Card,
   CardContent,
@@ -15,19 +16,24 @@ import {
 
 export const metadata: Metadata = { title: "Dashboard — PMOC+" };
 
-// PMOC fica zerado de propósito — o módulo que o alimenta chega na Fase 5.
-// Equipamentos (Fase 2), chamados urgentes (Fase 3) e preventivas ativas
-// (Fase 4) já mostram contagem real. Nenhum gráfico decorativo: só o que já
-// tem utilidade operacional.
+// Todos os 4 cards já mostram dado real desde a Fase 5. Nenhum gráfico
+// decorativo: só o que já tem utilidade operacional.
 export default async function DashboardPage() {
-  const [user, company, equipmentCount, urgentTicketsCount, activePreventivePlansCount] =
-    await Promise.all([
-      requireUser(),
-      getCurrentCompany(),
-      countEquipment(),
-      countUrgentOpenTickets(),
-      countActivePreventivePlans(),
-    ]);
+  const [
+    user,
+    company,
+    equipmentCount,
+    urgentTicketsCount,
+    activePreventivePlansCount,
+    generatedPmocsCount,
+  ] = await Promise.all([
+    requireUser(),
+    getCurrentCompany(),
+    countEquipment(),
+    countUrgentOpenTickets(),
+    countActivePreventivePlans(),
+    countGeneratedPmocs(),
+  ]);
 
   const overviewCards = [
     {
@@ -60,8 +66,11 @@ export default async function DashboardPage() {
     {
       title: "Situação do PMOC",
       icon: FileCheck2,
-      value: "0",
-      description: "Nenhum PMOC gerado ainda.",
+      value: String(generatedPmocsCount),
+      description:
+        generatedPmocsCount === 0
+          ? "Nenhum PMOC gerado ainda."
+          : "PMOCs consolidados e disponíveis para download.",
     },
   ];
 

@@ -1305,6 +1305,108 @@ export type Database = {
           },
         ];
       };
+      pmocs: {
+        Row: {
+          id: string;
+          company_id: string;
+          client_id: string;
+          period_start: string;
+          period_end: string;
+          title: string;
+          status: "draft" | "generated";
+          pdf_storage_path: string | null;
+          generated_by: string | null;
+          generated_at: string | null;
+          responsible_technician_name: string | null;
+          professional_registry: string | null;
+          art_number: string | null;
+          signature_storage_path: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          client_id: string;
+          period_start: string;
+          period_end: string;
+          title: string;
+          status?: "draft" | "generated";
+          pdf_storage_path?: string | null;
+          generated_by?: string | null;
+          generated_at?: string | null;
+          responsible_technician_name?: string | null;
+          professional_registry?: string | null;
+          art_number?: string | null;
+          signature_storage_path?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["pmocs"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "pmocs_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pmocs_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pmocs_generated_by_fkey";
+            columns: ["generated_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      pmoc_work_orders: {
+        Row: {
+          id: string;
+          company_id: string;
+          pmoc_id: string;
+          work_order_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          pmoc_id: string;
+          work_order_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["pmoc_work_orders"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "pmoc_work_orders_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pmoc_work_orders_pmoc_id_fkey";
+            columns: ["pmoc_id"];
+            isOneToOne: false;
+            referencedRelation: "pmocs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pmoc_work_orders_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
