@@ -9,7 +9,7 @@
 | 0 | Este documento de arquitetura | ✅ Concluída |
 | 1 | Fundação — auth, multi-tenancy, RLS, permissões, app shell, PWA | ✅ Concluída (commit `84bac90`) |
 | 2 | Estrutura operacional — clientes, unidades, setores, ambientes, equipamentos | ✅ Concluída (commit `f5eebed`) |
-| 3 | Chamados | ⏳ Pendente |
+| 3 | Chamados | ✅ Concluída (commit `6b90296`) |
 | 4 | Manutenção (OS, preventivas, checklist, medições, anexos, peças) | ⏳ Pendente |
 | 5 | PMOC (consolidação + PDF) | ⏳ Pendente |
 | 6 | Offline-first (Dexie + sync) | ⏳ Pendente |
@@ -89,7 +89,7 @@ PMOC+/
 └── tests/
 ```
 
-**`features/` implementados:** `auth`, `companies`, `users`, `invites` (Fase 1); `clients`, `units` (cobre também `sectors`/`environments`), `equipment` (Fase 2).
+**`features/` implementados:** `auth`, `companies`, `users`, `invites` (Fase 1); `clients`, `units` (cobre também `sectors`/`environments`), `equipment` (Fase 2); `tickets` (Fase 3).
 
 ---
 
@@ -406,8 +406,9 @@ Auth completo (login, criação de empresa, convite/ativação de técnico), mul
 
 Hierarquia física completa: Cliente → Unidade → Setor (opcional) → Ambiente → Equipamento. CRUD das 5 entidades com formulários em cascata, navegação da hierarquia por páginas de detalhe, gestão de status de equipamento (4 estados), auditoria ligada aos 5 cadastros. Verificado: build/lint limpos, fluxo manual completo, RLS confirmado com empresa nova (lista vazia + 404 em acesso direto), auditoria confirmada via query direta, permissões confirmadas com Responsável Técnico (nav filtrada, `/clientes`/`/unidades` bloqueados, `/equipamentos` só leitura).
 
-### FASE 3 — Chamados (a fazer)
-CRUD de chamados, workflow de prioridade/status com timeline, criação pelo admin (contato do cliente) e pelo técnico (ad-hoc a partir do equipamento, com auto-preenchimento), atribuição, view "Minhas atividades/Meu dia".
+### FASE 3 — Chamados ✅ concluída
+
+CRUD de chamados, workflow de status (aberto→designado→em_atendimento→aguardando_peça/cliente→concluído/cancelado) com timeline derivada de `audit_logs` via RPC `get_ticket_timeline` (escopada por `view_tickets`, não `view_audit_log` — evita exigir permissão de auditoria completa só para ver o histórico do próprio chamado), criação pelo admin (cascata cliente→unidade→setor?→ambiente?→equipamento?) e pelo técnico (ad-hoc a partir do equipamento, localização resolvida no servidor), atribuição (avança `aberto`→`designado` automaticamente), view "Minhas atividades" (chamados do técnico logado, ainda abertos). `equipment_id`/`work_order_id` nullable desde já — `work_order_id` fica sem FK até a Fase 4 criar `work_orders` (migração aditiva). Verificado: build/lint limpos, fluxo manual completo (admin e Responsável Técnico), RLS confirmado com empresa nova (lista vazia + 404 em acesso direto), permissões do técnico corretas (cria chamados, não edita/atribui, timeline visível sem `view_audit_log`).
 
 ### FASE 4 — Manutenção (a fazer)
 Geração de OS (de chamado = corretiva; de preventive_plans = preventiva agrupada), CRUD de preventivas + geração de OS, fluxo de atendimento em etapas com salvamento incremental, templates/itens/respostas de checklist, seed de measurement_types + registro de medições, upload no Storage com limite por categoria, fluxo administrativo de solicitação de peças, histórico completo do equipamento (hoje um placeholder vazio em `/equipamentos/[id]`).
