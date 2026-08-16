@@ -11,7 +11,7 @@
 | 2 | Estrutura operacional — clientes, unidades, setores, ambientes, equipamentos | ✅ Concluída (commit `f5eebed`) |
 | 3 | Chamados | ✅ Concluída (commit `6b90296`) |
 | 4 | Manutenção (OS, preventivas, checklist, medições, anexos, peças) | ✅ Concluída (commits `bda1481` 4.1 + `20a56ad` 4.2) |
-| 5 | PMOC (consolidação + PDF) | ⏳ Pendente |
+| 5 | PMOC (consolidação + PDF) | ✅ Concluída (commit `5559e0e`) |
 | 6 | Offline-first (Dexie + sync) | ⏳ Pendente |
 | 7 | Refinamento | ⏳ Pendente |
 | — | Deploy inicial no Vercel | ⏳ Adiado a pedido do usuário — repo pronto (`npm run build --webpack` limpo), só falta configurar env vars no Vercel e apontar o projeto |
@@ -89,7 +89,7 @@ PMOC+/
 └── tests/
 ```
 
-**`features/` implementados:** `auth`, `companies`, `users`, `invites` (Fase 1); `clients`, `units` (cobre também `sectors`/`environments`), `equipment` (Fase 2); `tickets` (Fase 3); `work-orders`, `preventive-plans`, `checklist-templates`, `maintenance`, `attachments`, `parts-requests` (Fase 4).
+**`features/` implementados:** `auth`, `companies`, `users`, `invites` (Fase 1); `clients`, `units` (cobre também `sectors`/`environments`), `equipment` (Fase 2); `tickets` (Fase 3); `work-orders`, `preventive-plans`, `checklist-templates`, `maintenance`, `attachments`, `parts-requests` (Fase 4); `pmoc` (Fase 5).
 
 ---
 
@@ -421,8 +421,19 @@ Maior fase do roadmap até aqui, entregue em duas sub-fases dentro da mesma sess
 
 Verificado: build/lint limpos nas duas sub-fases; fluxo manual completo de ponta a ponta (chamado→OS corretiva e preventiva→OS preventiva, atendimento completo incluindo upload real de foto no Storage, conferido no histórico do equipamento após reload); RLS confirmado com empresa nova em cada sub-fase (listas vazias + 404, inclusive na rota de atendimento); permissões do Responsável Técnico corretas (executa qualquer OS via `execute_work_order`, sem gerar/cancelar OS, sem gerenciar templates/tipos de medição, cria solicitação de peça mas não muda o status dela).
 
-### FASE 5 — PMOC (a fazer)
-Consolidação por cliente/período entre unidades, UI de geração, PDF via `@react-pdf/renderer` com campos futuros extensíveis já presentes (mas em branco), armazenamento do PDF gerado, download manual, dashboard de status do PMOC com dados reais.
+### FASE 5 — PMOC ✅ concluída
+
+Consolidação por cliente/período entre todas as unidades daquele cliente, num único PDF técnico, fechando o motivo de existir do produto.
+
+- `pmocs` (`client_id`, `period_start`/`period_end`, `title`, `status` `draft`|`generated`, `pdf_storage_path`, `generated_by`/`generated_at`, + campos nullable de extensão futura já presentes em branco: `responsible_technician_name`, `professional_registry`, `art_number`, `signature_storage_path`) e `pmoc_work_orders` (join de rastreabilidade — quais OS entraram, `company_id` denormalizado mesmo sendo N:N, mesmo padrão de `preventive_plan_equipment`). Bucket Storage privado `pmoc-pdfs`, mesmo padrão de path/policy de `attachments`.
+- **Seleção das OS é automática, não curada**: todas as `work_orders` do cliente com `status='concluida'` e `finished_at` dentro do período, cobrindo todas as unidades de uma vez (filtro só por `client_id`). Limite superior exclusivo (dia seguinte) na query, não `.lte()`, pra não truncar a última data por causa da hora do `finished_at` — mesma cautela de fuso da Fase 4.
+- **Decisão de fluxo que evita `draft` órfão**: a Server Action `generatePmoc` busca as OS elegíveis, monta o PDF inteiro em memória (`renderToBuffer`) e só grava no banco (`pmocs` + `pmoc_work_orders`) depois do upload pro Storage ter sucesso. Toda linha de `pmocs` nasce já `status='generated'` — a coluna `draft` existe no schema por fidelidade à arquitetura, mas nenhum caminho de código a alcança. Zero OS elegíveis no período retorna erro claro, sem gravar nada.
+- Conteúdo do PDF (v1, escopo deliberadamente contido): cabeçalho (empresa/cliente/CNPJ/período), por unidade → por OS → por equipamento: dados do equipamento, checklist, medições, texto completo do laudo, técnico responsável, datas. **Sem fotos embutidas** — decisão de escopo explícita (embutir imagem remota via signed URL no react-pdf é uma dependência de rede frágil dentro de geração de documento; fotos continuam acessíveis no sistema, por OS).
+- `features/pmoc/queries.ts` reaproveita `getMaintenanceRecordDetail` (já existente desde a Fase 4) por equipamento em vez de duplicar a query de checklist/medições/laudo — só monta a consolidação por cima.
+- Download via signed URL (1h, mesmo padrão de `attachments`), gerado sob demanda por Server Action (`getPmocDownloadUrl`), nunca um link público direto.
+- Nenhuma permissão nova: `generate_pmoc` já existia desde o seed da Fase 1; RESPONSAVEL_TECNICO não a recebe (módulo exclusivo do admin).
+
+Verificado: build/lint limpos; fluxo manual completo de ponta a ponta (chamado→OS→execução→laudo→conclusão→geração de PMOC→download real do PDF a partir do bucket, signed URL confirmada servindo o binário); caso de período sem OS concluída testado (erro claro, nenhuma linha órfã em `pmocs`); RLS confirmado com empresa nova (`/pmoc` vazio, acesso direto a `/pmoc/[id]` de outra empresa → 404); permissão do Responsável Técnico confirmada (nav item oculto, página bloqueada com `AccessDenied`); dashboard com contagem real de PMOCs gerados.
 
 ### FASE 6 — Offline-first (a fazer)
 Schema Dexie completo + outbox + motor de sync (seções 12/13), UI do técnico reescrita para ler/escrever local-first, estados de sync visíveis, banners de conflito, upserts/RPCs idempotentes, QA em modo avião iOS/Android. Revisitar PowerSync se o Dexie feito à mão se mostrar insuficiente em escala real.
