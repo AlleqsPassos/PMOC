@@ -151,6 +151,25 @@ export async function getEquipmentById(
   };
 }
 
+export type EquipmentOption = { id: string; tag: string; unitId: string };
+
+/** Lista enxuta para selects em cascata (ex: formulário de chamado). */
+export async function listEquipmentOptions(): Promise<EquipmentOption[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("equipment")
+    .select("id, tag, unit_id")
+    .is("deleted_at", null)
+    .order("tag");
+
+  if (error) {
+    console.error("[listEquipmentOptions]", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((e) => ({ id: e.id, tag: e.tag, unitId: e.unit_id }));
+}
+
 /** Contagem total (não-deletados) — usada no card do dashboard. */
 export async function countEquipment(): Promise<number> {
   const supabase = await createClient();

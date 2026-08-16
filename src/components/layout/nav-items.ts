@@ -30,7 +30,7 @@ export const primaryNavItems: NavItem[] = [
     href: "/minhas-atividades",
     label: "Minhas atividades",
     icon: ListChecks,
-    comingSoon: true,
+    requiredPermission: "view_tickets",
   },
   {
     href: "/clientes",
@@ -55,7 +55,6 @@ export const primaryNavItems: NavItem[] = [
     label: "Chamados",
     icon: Headset,
     requiredPermission: "view_tickets",
-    comingSoon: true,
   },
   {
     href: "/preventivas",

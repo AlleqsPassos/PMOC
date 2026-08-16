@@ -3,6 +3,7 @@ import { CalendarClock, FileCheck2, Headset, Wrench } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { getCurrentCompany } from "@/features/companies/queries";
 import { countEquipment } from "@/features/equipment/queries";
+import { countUrgentOpenTickets } from "@/features/tickets/queries";
 import {
   Card,
   CardContent,
@@ -13,22 +14,27 @@ import {
 
 export const metadata: Metadata = { title: "Dashboard — PMOC+" };
 
-// Chamados/preventivas/PMOC ficam zerados de propósito — os módulos que os
-// alimentam chegam nas Fases 3-5. Equipamentos já mostra contagem real
-// (Fase 2). Nenhum gráfico decorativo: só o que já tem utilidade operacional.
+// Preventivas/PMOC ficam zerados de propósito — os módulos que os alimentam
+// chegam nas Fases 4-5. Equipamentos (Fase 2) e chamados urgentes (Fase 3)
+// já mostram contagem real. Nenhum gráfico decorativo: só o que já tem
+// utilidade operacional.
 export default async function DashboardPage() {
-  const [user, company, equipmentCount] = await Promise.all([
+  const [user, company, equipmentCount, urgentTicketsCount] = await Promise.all([
     requireUser(),
     getCurrentCompany(),
     countEquipment(),
+    countUrgentOpenTickets(),
   ]);
 
   const overviewCards = [
     {
       title: "Chamados urgentes",
       icon: Headset,
-      value: "0",
-      description: "Nenhum chamado registrado ainda.",
+      value: String(urgentTicketsCount),
+      description:
+        urgentTicketsCount === 0
+          ? "Nenhum chamado urgente em aberto."
+          : "Prioridade urgente, ainda não concluídos.",
     },
     {
       title: "Preventivas pendentes",

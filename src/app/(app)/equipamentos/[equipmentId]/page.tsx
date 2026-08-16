@@ -13,6 +13,10 @@ import { listClientOptions } from "@/features/clients/queries";
 import { EquipmentFormDialog } from "@/features/equipment/components/equipment-form-dialog";
 import { EquipmentStatusSelect } from "@/features/equipment/components/equipment-status-select";
 import { EquipmentStatusBadge } from "@/features/equipment/components/equipment-status-badge";
+import { listTicketsByEquipment } from "@/features/tickets/queries";
+import { TicketFormDialog } from "@/features/tickets/components/ticket-form-dialog";
+import { TicketStatusBadge } from "@/features/tickets/components/ticket-status-badge";
+import { TicketPriorityBadge } from "@/features/tickets/components/ticket-priority-badge";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
@@ -32,14 +36,23 @@ export default async function EquipamentoDetalhePage(
   const equipment = await getEquipmentById(equipmentId);
   if (!equipment) notFound();
 
-  const [clientOptions, unitOptions, sectorOptions, environmentOptions, canEdit] =
-    await Promise.all([
-      listClientOptions(),
-      listUnitOptions(),
-      listSectorOptions(),
-      listEnvironmentOptions(),
-      hasPermission("edit_equipment"),
-    ]);
+  const [
+    clientOptions,
+    unitOptions,
+    sectorOptions,
+    environmentOptions,
+    canEdit,
+    tickets,
+    canCreateTicket,
+  ] = await Promise.all([
+    listClientOptions(),
+    listUnitOptions(),
+    listSectorOptions(),
+    listEnvironmentOptions(),
+    hasPermission("edit_equipment"),
+    listTicketsByEquipment(equipmentId),
+    hasPermission("create_tickets"),
+  ]);
 
   const unitOptionsForForm = unitOptions.map((u) => ({
     id: u.id,
@@ -114,11 +127,47 @@ export default async function EquipamentoDetalhePage(
       </Card>
 
       <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-base">Chamados</CardTitle>
+            <CardDescription>Ocorrências reportadas para este equipamento.</CardDescription>
+          </div>
+          {canCreateTicket && (
+            <TicketFormDialog
+              mode="quick"
+              equipmentId={equipment.id}
+              locationLabel={`${equipment.tag} (${equipment.unitName})`}
+            />
+          )}
+        </CardHeader>
+        <CardContent>
+          {tickets.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Nenhum chamado aberto ainda.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {tickets.map((t) => (
+                <Link
+                  key={t.id}
+                  href={`/chamados/${t.id}`}
+                  className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm hover:bg-accent/50"
+                >
+                  <span>{t.title}</span>
+                  <span className="flex items-center gap-2">
+                    <TicketPriorityBadge priority={t.priority} />
+                    <TicketStatusBadge status={t.status} />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Histórico de manutenção</CardTitle>
           <CardDescription>
-            Nenhum registro ainda — chamados, ordens de serviço e laudos chegam
-            nas Fases 3 e 4.
+            Nenhum registro ainda — ordens de serviço e laudos chegam na Fase 4.
           </CardDescription>
         </CardHeader>
       </Card>

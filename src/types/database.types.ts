@@ -574,6 +574,121 @@ export type Database = {
         // migration 0012: log é propositalmente polimórfico/desacoplado.
         Relationships: [];
       };
+      tickets: {
+        Row: {
+          id: string;
+          company_id: string;
+          client_id: string;
+          unit_id: string;
+          sector_id: string | null;
+          environment_id: string | null;
+          equipment_id: string | null;
+          title: string;
+          description: string | null;
+          priority: "urgente" | "alta" | "media" | "baixa";
+          status:
+            | "aberto"
+            | "designado"
+            | "em_atendimento"
+            | "aguardando_peca"
+            | "aguardando_cliente"
+            | "concluido"
+            | "cancelado";
+          assigned_user_id: string | null;
+          opened_by_user_id: string;
+          opened_at: string;
+          work_order_id: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          client_id: string;
+          unit_id: string;
+          sector_id?: string | null;
+          environment_id?: string | null;
+          equipment_id?: string | null;
+          title: string;
+          description?: string | null;
+          priority?: "urgente" | "alta" | "media" | "baixa";
+          status?:
+            | "aberto"
+            | "designado"
+            | "em_atendimento"
+            | "aguardando_peca"
+            | "aguardando_cliente"
+            | "concluido"
+            | "cancelado";
+          assigned_user_id?: string | null;
+          opened_by_user_id: string;
+          opened_at?: string;
+          work_order_id?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["tickets"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "tickets_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tickets_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tickets_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tickets_sector_id_fkey";
+            columns: ["sector_id"];
+            isOneToOne: false;
+            referencedRelation: "sectors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tickets_environment_id_fkey";
+            columns: ["environment_id"];
+            isOneToOne: false;
+            referencedRelation: "environments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tickets_equipment_id_fkey";
+            columns: ["equipment_id"];
+            isOneToOne: false;
+            referencedRelation: "equipment";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tickets_assigned_user_id_fkey";
+            columns: ["assigned_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tickets_opened_by_user_id_fkey";
+            columns: ["opened_by_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -599,6 +714,17 @@ export type Database = {
       has_permission: {
         Args: { p_user_id: string; p_permission_key: string };
         Returns: boolean;
+      };
+      get_ticket_timeline: {
+        Args: { p_ticket_id: string };
+        Returns: {
+          id: string;
+          action: string;
+          previous_data: Record<string, unknown> | null;
+          new_data: Record<string, unknown> | null;
+          user_id: string | null;
+          created_at: string;
+        }[];
       };
     };
     Enums: Record<string, never>;
