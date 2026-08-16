@@ -10,7 +10,7 @@
 | 1 | Fundação — auth, multi-tenancy, RLS, permissões, app shell, PWA | ✅ Concluída (commit `84bac90`) |
 | 2 | Estrutura operacional — clientes, unidades, setores, ambientes, equipamentos | ✅ Concluída (commit `f5eebed`) |
 | 3 | Chamados | ✅ Concluída (commit `6b90296`) |
-| 4 | Manutenção (OS, preventivas, checklist, medições, anexos, peças) | ⏳ Pendente |
+| 4 | Manutenção (OS, preventivas, checklist, medições, anexos, peças) | ✅ Concluída (commits `bda1481` 4.1 + `20a56ad` 4.2) |
 | 5 | PMOC (consolidação + PDF) | ⏳ Pendente |
 | 6 | Offline-first (Dexie + sync) | ⏳ Pendente |
 | 7 | Refinamento | ⏳ Pendente |
@@ -89,7 +89,7 @@ PMOC+/
 └── tests/
 ```
 
-**`features/` implementados:** `auth`, `companies`, `users`, `invites` (Fase 1); `clients`, `units` (cobre também `sectors`/`environments`), `equipment` (Fase 2); `tickets` (Fase 3).
+**`features/` implementados:** `auth`, `companies`, `users`, `invites` (Fase 1); `clients`, `units` (cobre também `sectors`/`environments`), `equipment` (Fase 2); `tickets` (Fase 3); `work-orders`, `preventive-plans`, `checklist-templates`, `maintenance`, `attachments`, `parts-requests` (Fase 4).
 
 ---
 
@@ -410,8 +410,16 @@ Hierarquia física completa: Cliente → Unidade → Setor (opcional) → Ambien
 
 CRUD de chamados, workflow de status (aberto→designado→em_atendimento→aguardando_peça/cliente→concluído/cancelado) com timeline derivada de `audit_logs` via RPC `get_ticket_timeline` (escopada por `view_tickets`, não `view_audit_log` — evita exigir permissão de auditoria completa só para ver o histórico do próprio chamado), criação pelo admin (cascata cliente→unidade→setor?→ambiente?→equipamento?) e pelo técnico (ad-hoc a partir do equipamento, localização resolvida no servidor), atribuição (avança `aberto`→`designado` automaticamente), view "Minhas atividades" (chamados do técnico logado, ainda abertos). `equipment_id`/`work_order_id` nullable desde já — `work_order_id` fica sem FK até a Fase 4 criar `work_orders` (migração aditiva). Verificado: build/lint limpos, fluxo manual completo (admin e Responsável Técnico), RLS confirmado com empresa nova (lista vazia + 404 em acesso direto), permissões do técnico corretas (cria chamados, não edita/atribui, timeline visível sem `view_audit_log`).
 
-### FASE 4 — Manutenção (a fazer)
-Geração de OS (de chamado = corretiva; de preventive_plans = preventiva agrupada), CRUD de preventivas + geração de OS, fluxo de atendimento em etapas com salvamento incremental, templates/itens/respostas de checklist, seed de measurement_types + registro de medições, upload no Storage com limite por categoria, fluxo administrativo de solicitação de peças, histórico completo do equipamento (hoje um placeholder vazio em `/equipamentos/[id]`).
+### FASE 4 — Manutenção ✅ concluída
+
+Maior fase do roadmap até aqui, entregue em duas sub-fases dentro da mesma sessão (só um checkpoint de verificação intermediário, sem mudança de escopo):
+
+- **4.1 — Estrutura**: `work_orders` (geradas de chamado = corretiva, com escolha manual de equipamento(s), ou de `preventive_plans` = preventiva, equipamentos herdados do plano), `preventive_plans` + `preventive_plan_equipment` (CRUD completo, cascata cliente→unidade→multi-select), `maintenance_records` (um por equipamento, criado em lote na geração da OS). Permissão nova `manage_work_orders`; RLS de update com dupla-permissão (`manage_work_orders` OU `execute_work_order`, mesmo padrão de tickets). `tickets.work_order_id` ganhou a FK real reservada desde a Fase 3.
+- **4.2 — Execução**: `checklist_templates`/itens (editável pelo admin, sem hardcode), respostas de checklist por equipamento (`label_snapshot` preserva o texto se o template mudar depois), `measurement_types` (4 globais seedados: temperatura/corrente/tensão/pressão, mais os que cada empresa quiser adicionar) + `measurements` (aditivo, sem update/delete), `attachments` + bucket Storage privado `attachments` (upload direto do client component, limite de 2 fotos/categoria reforçado na Server Action), `parts_requests` (técnico cria durante a execução, admin avança o status — fluxo administrativo separado). 3 permissões novas (`manage_checklist_templates`, `manage_measurement_types`, `manage_parts_requests`), nenhuma para Responsável Técnico — a execução em si já está coberta por `execute_work_order`.
+- Fluxo de atendimento (`/ordens-servico/[id]/atender/[registroId]`): iniciar → aplicar template de checklist → marcar item a item (+ itens "outro" ad-hoc) → registrar medições → subir fotos por categoria → solicitar peças → salvar laudo incrementalmente (cada seção é uma Server Action pequena, não um form gigante) → concluir. `equipamentos/[id]` mostra histórico real (laudo + diagnóstico de OS concluídas, antes um placeholder vazio); `/minhas-atividades` estendida para OS em aberto, além de chamados.
+- Bug real encontrado e corrigido no teste manual: formatar uma coluna `date` pura (sem hora) via `new Date(string)` + `date-fns` exibia o dia anterior em fusos atrás de UTC (Brasil) — corrigido com `src/lib/format-date.ts` (parse manual da string, sem instanciar `Date`).
+
+Verificado: build/lint limpos nas duas sub-fases; fluxo manual completo de ponta a ponta (chamado→OS corretiva e preventiva→OS preventiva, atendimento completo incluindo upload real de foto no Storage, conferido no histórico do equipamento após reload); RLS confirmado com empresa nova em cada sub-fase (listas vazias + 404, inclusive na rota de atendimento); permissões do Responsável Técnico corretas (executa qualquer OS via `execute_work_order`, sem gerar/cancelar OS, sem gerenciar templates/tipos de medição, cria solicitação de peça mas não muda o status dela).
 
 ### FASE 5 — PMOC (a fazer)
 Consolidação por cliente/período entre unidades, UI de geração, PDF via `@react-pdf/renderer` com campos futuros extensíveis já presentes (mas em branco), armazenamento do PDF gerado, download manual, dashboard de status do PMOC com dados reais.
