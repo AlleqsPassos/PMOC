@@ -687,6 +687,287 @@ export type Database = {
             referencedRelation: "users";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "tickets_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      work_orders: {
+        Row: {
+          id: string;
+          company_id: string;
+          client_id: string;
+          unit_id: string;
+          type: "corretiva" | "preventiva";
+          origin_ticket_id: string | null;
+          origin_preventive_plan_id: string | null;
+          title: string;
+          status: "aberta" | "em_andamento" | "concluida" | "cancelada";
+          assigned_user_id: string | null;
+          scheduled_date: string | null;
+          started_at: string | null;
+          finished_at: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          client_id: string;
+          unit_id: string;
+          type: "corretiva" | "preventiva";
+          origin_ticket_id?: string | null;
+          origin_preventive_plan_id?: string | null;
+          title: string;
+          status?: "aberta" | "em_andamento" | "concluida" | "cancelada";
+          assigned_user_id?: string | null;
+          scheduled_date?: string | null;
+          started_at?: string | null;
+          finished_at?: string | null;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["work_orders"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_orders_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_orders_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_orders_origin_ticket_id_fkey";
+            columns: ["origin_ticket_id"];
+            isOneToOne: false;
+            referencedRelation: "tickets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_orders_origin_preventive_plan_id_fkey";
+            columns: ["origin_preventive_plan_id"];
+            isOneToOne: false;
+            referencedRelation: "preventive_plans";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_orders_assigned_user_id_fkey";
+            columns: ["assigned_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_orders_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      preventive_plans: {
+        Row: {
+          id: string;
+          company_id: string;
+          client_id: string;
+          unit_id: string;
+          period_start: string;
+          period_end: string;
+          periodicity:
+            | "semanal"
+            | "quinzenal"
+            | "mensal"
+            | "bimestral"
+            | "trimestral"
+            | "semestral"
+            | "anual"
+            | "personalizada";
+          assigned_user_id: string | null;
+          status: "active" | "inactive";
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          client_id: string;
+          unit_id: string;
+          period_start: string;
+          period_end: string;
+          periodicity:
+            | "semanal"
+            | "quinzenal"
+            | "mensal"
+            | "bimestral"
+            | "trimestral"
+            | "semestral"
+            | "anual"
+            | "personalizada";
+          assigned_user_id?: string | null;
+          status?: "active" | "inactive";
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["preventive_plans"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "preventive_plans_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "preventive_plans_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "preventive_plans_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "preventive_plans_assigned_user_id_fkey";
+            columns: ["assigned_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      preventive_plan_equipment: {
+        Row: {
+          id: string;
+          company_id: string;
+          preventive_plan_id: string;
+          equipment_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          preventive_plan_id: string;
+          equipment_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["preventive_plan_equipment"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "preventive_plan_equipment_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "preventive_plan_equipment_preventive_plan_id_fkey";
+            columns: ["preventive_plan_id"];
+            isOneToOne: false;
+            referencedRelation: "preventive_plans";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "preventive_plan_equipment_equipment_id_fkey";
+            columns: ["equipment_id"];
+            isOneToOne: false;
+            referencedRelation: "equipment";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      maintenance_records: {
+        Row: {
+          id: string;
+          company_id: string;
+          work_order_id: string;
+          equipment_id: string;
+          technician_user_id: string | null;
+          status: "draft" | "completed";
+          cause_identified: string | null;
+          service_performed: string | null;
+          recommendation: string | null;
+          diagnosis: string | null;
+          notes: string | null;
+          started_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          work_order_id: string;
+          equipment_id: string;
+          technician_user_id?: string | null;
+          status?: "draft" | "completed";
+          cause_identified?: string | null;
+          service_performed?: string | null;
+          recommendation?: string | null;
+          diagnosis?: string | null;
+          notes?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["maintenance_records"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_records_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_records_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_records_equipment_id_fkey";
+            columns: ["equipment_id"];
+            isOneToOne: false;
+            referencedRelation: "equipment";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_records_technician_user_id_fkey";
+            columns: ["technician_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
         ];
       };
     };

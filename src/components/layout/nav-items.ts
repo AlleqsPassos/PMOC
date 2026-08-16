@@ -61,14 +61,12 @@ export const primaryNavItems: NavItem[] = [
     label: "Preventivas",
     icon: CalendarClock,
     requiredPermission: "manage_preventive_plans",
-    comingSoon: true,
   },
   {
     href: "/ordens-servico",
     label: "Ordens de serviço",
     icon: ClipboardList,
     requiredPermission: "view_work_orders",
-    comingSoon: true,
   },
   {
     href: "/pmoc",

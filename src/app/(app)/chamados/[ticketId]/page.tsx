@@ -7,14 +7,17 @@ import { requireUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { getTicketById, getTicketTimeline } from "@/features/tickets/queries";
 import { listCompanyUsers } from "@/features/users/queries";
+import { listEquipmentOptions } from "@/features/equipment/queries";
 import { TicketFormDialog } from "@/features/tickets/components/ticket-form-dialog";
 import { TicketStatusSelect } from "@/features/tickets/components/ticket-status-select";
 import { TicketStatusBadge } from "@/features/tickets/components/ticket-status-badge";
 import { TicketPriorityBadge } from "@/features/tickets/components/ticket-priority-badge";
 import { TicketAssignSelect } from "@/features/tickets/components/ticket-assign-select";
 import { TicketTimeline } from "@/features/tickets/components/ticket-timeline";
+import { GenerateWorkOrderDialog } from "@/features/work-orders/components/generate-work-order-dialog";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Chamado — PMOC+" };
 
@@ -32,16 +35,21 @@ export default async function ChamadoDetalhePage(
   const ticket = await getTicketById(ticketId);
   if (!ticket) notFound();
 
-  const [timeline, companyUsers, canEdit, canAssign] = await Promise.all([
-    getTicketTimeline(ticketId),
-    listCompanyUsers(),
-    hasPermission("edit_tickets"),
-    hasPermission("assign_tickets"),
-  ]);
+  const [timeline, companyUsers, canEdit, canAssign, canManageWorkOrders, equipmentOptions] =
+    await Promise.all([
+      getTicketTimeline(ticketId),
+      listCompanyUsers(),
+      hasPermission("edit_tickets"),
+      hasPermission("assign_tickets"),
+      hasPermission("manage_work_orders"),
+      listEquipmentOptions(),
+    ]);
 
   const assignableUsers = companyUsers
     .filter((u) => u.status === "active")
     .map((u) => ({ id: u.id, fullName: u.fullName }));
+
+  const equipmentForUnit = equipmentOptions.filter((e) => e.unitId === ticket.unitId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -135,6 +143,33 @@ export default async function ChamadoDetalhePage(
         <CardContent className="text-sm">
           {ticket.description || (
             <span className="text-muted-foreground">Nenhuma descrição informada.</span>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base">Ordem de serviço</CardTitle>
+          {!ticket.workOrderId && canManageWorkOrders && (
+            <GenerateWorkOrderDialog
+              mode="from-ticket"
+              ticketId={ticket.id}
+              defaultTitle={`OS — ${ticket.title}`}
+              equipmentOptions={equipmentForUnit}
+              defaultEquipmentId={ticket.equipmentId}
+              users={assignableUsers}
+            />
+          )}
+        </CardHeader>
+        <CardContent className="text-sm">
+          {ticket.workOrderId ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/ordens-servico/${ticket.workOrderId}`}>Ver ordem de serviço</Link>
+            </Button>
+          ) : (
+            <span className="text-muted-foreground">
+              Nenhuma OS gerada ainda para este chamado.
+            </span>
           )}
         </CardContent>
       </Card>

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getCurrentCompany } from "@/features/companies/queries";
 import { countEquipment } from "@/features/equipment/queries";
 import { countUrgentOpenTickets } from "@/features/tickets/queries";
+import { countActivePreventivePlans } from "@/features/preventive-plans/queries";
 import {
   Card,
   CardContent,
@@ -14,17 +15,19 @@ import {
 
 export const metadata: Metadata = { title: "Dashboard — PMOC+" };
 
-// Preventivas/PMOC ficam zerados de propósito — os módulos que os alimentam
-// chegam nas Fases 4-5. Equipamentos (Fase 2) e chamados urgentes (Fase 3)
-// já mostram contagem real. Nenhum gráfico decorativo: só o que já tem
-// utilidade operacional.
+// PMOC fica zerado de propósito — o módulo que o alimenta chega na Fase 5.
+// Equipamentos (Fase 2), chamados urgentes (Fase 3) e preventivas ativas
+// (Fase 4) já mostram contagem real. Nenhum gráfico decorativo: só o que já
+// tem utilidade operacional.
 export default async function DashboardPage() {
-  const [user, company, equipmentCount, urgentTicketsCount] = await Promise.all([
-    requireUser(),
-    getCurrentCompany(),
-    countEquipment(),
-    countUrgentOpenTickets(),
-  ]);
+  const [user, company, equipmentCount, urgentTicketsCount, activePreventivePlansCount] =
+    await Promise.all([
+      requireUser(),
+      getCurrentCompany(),
+      countEquipment(),
+      countUrgentOpenTickets(),
+      countActivePreventivePlans(),
+    ]);
 
   const overviewCards = [
     {
@@ -39,8 +42,11 @@ export default async function DashboardPage() {
     {
       title: "Preventivas pendentes",
       icon: CalendarClock,
-      value: "0",
-      description: "Nenhuma preventiva cadastrada ainda.",
+      value: String(activePreventivePlansCount),
+      description:
+        activePreventivePlansCount === 0
+          ? "Nenhum plano preventivo ativo."
+          : "Planos preventivos ativos.",
     },
     {
       title: "Equipamentos",

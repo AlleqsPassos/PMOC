@@ -117,6 +117,7 @@ export type TicketDetail = {
   assignedUserId: string | null;
   assignedName: string | null;
   openedByName: string;
+  workOrderId: string | null;
 };
 
 export async function getTicketById(ticketId: string): Promise<TicketDetail | null> {
@@ -124,7 +125,7 @@ export async function getTicketById(ticketId: string): Promise<TicketDetail | nu
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      `id, title, description, priority, status, notes, opened_at,
+      `id, title, description, priority, status, notes, opened_at, work_order_id,
        client_id, client:clients(corporate_name),
        unit_id, unit:units(name),
        sector:sectors(name),
@@ -160,6 +161,7 @@ export async function getTicketById(ticketId: string): Promise<TicketDetail | nu
     assignedUserId: data.assigned_user_id,
     assignedName: firstOf(data.assigned)?.full_name ?? null,
     openedByName: firstOf(data.opened_by)?.full_name ?? "—",
+    workOrderId: data.work_order_id,
   };
 }
 
