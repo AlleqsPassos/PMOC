@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { updateChecklistItemStatus } from "@/features/maintenance/actions";
+import { updateChecklistItemStatusOffline } from "@/features/maintenance/offline-actions";
 import {
   CHECKLIST_ITEM_STATUS,
   CHECKLIST_ITEM_STATUS_LABELS,
@@ -17,15 +17,11 @@ const VARIANT: Record<ChecklistItemStatus, "default" | "destructive" | "outline"
 
 export function ChecklistItemRow({
   itemId,
-  workOrderId,
-  recordId,
   label,
   status,
   isAdhoc,
 }: {
   itemId: string;
-  workOrderId: string;
-  recordId: string;
   label: string;
   status: ChecklistItemStatus;
   isAdhoc: boolean;
@@ -49,7 +45,7 @@ export function ChecklistItemRow({
             disabled={isPending}
             onClick={() => {
               setValue(s);
-              startTransition(() => updateChecklistItemStatus(itemId, workOrderId, recordId, s));
+              startTransition(() => updateChecklistItemStatusOffline(itemId, s));
             }}
           >
             {CHECKLIST_ITEM_STATUS_LABELS[s]}

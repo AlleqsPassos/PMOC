@@ -16,7 +16,7 @@ import { EquipmentFormDialog } from "@/features/equipment/components/equipment-f
 import { EquipmentStatusSelect } from "@/features/equipment/components/equipment-status-select";
 import { EquipmentStatusBadge } from "@/features/equipment/components/equipment-status-badge";
 import { listTicketsByEquipment } from "@/features/tickets/queries";
-import { TicketFormDialog } from "@/features/tickets/components/ticket-form-dialog";
+import { TicketQuickFormDialog } from "@/features/tickets/components/ticket-quick-form-dialog";
 import { TicketStatusBadge } from "@/features/tickets/components/ticket-status-badge";
 import { TicketPriorityBadge } from "@/features/tickets/components/ticket-priority-badge";
 import { listMaintenanceRecordsByEquipment } from "@/features/maintenance/queries";
@@ -140,8 +140,7 @@ export default async function EquipamentoDetalhePage(
             <CardDescription>Ocorrências reportadas para este equipamento.</CardDescription>
           </div>
           {canCreateTicket && (
-            <TicketFormDialog
-              mode="quick"
+            <TicketQuickFormDialog
               equipmentId={equipment.id}
               locationLabel={`${equipment.tag} (${equipment.unitName})`}
             />

@@ -4,11 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/permissions";
-import {
-  ticketQuickSchema,
-  ticketSchema,
-  type TicketStatus,
-} from "@/features/tickets/schema";
+import { ticketQuickSchema, ticketSchema, type TicketStatus } from "@/features/tickets/schema";
 
 export type TicketFormState =
   | { error?: string; fieldErrors?: Record<string, string[]>; success?: boolean }
@@ -31,6 +27,7 @@ function parseTicketForm(formData: FormData) {
   });
 }
 
+/** Também usado por updateTicket — mesmo shape do form de edição (sem localização). */
 function parseQuickForm(formData: FormData) {
   return ticketQuickSchema.safeParse({
     title: formData.get("title"),
@@ -81,62 +78,9 @@ export async function createTicket(
   return { success: true };
 }
 
-/**
- * Criação ad-hoc pelo técnico a partir da página do equipamento —
- * localização é derivada do próprio equipamento no servidor, nunca confiada
- * ao formulário. Requer create_tickets (RESPONSAVEL_TECNICO já tem por
- * default, ver 0005_seed_roles_permissions.sql).
- */
-export async function createTicketFromEquipment(
-  equipmentId: string,
-  _prevState: TicketFormState,
-  formData: FormData,
-): Promise<TicketFormState> {
-  const user = await requireUser();
-  await assertPermission("create_tickets");
-
-  const parsed = parseQuickForm(formData);
-  if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
-  }
-
-  const supabase = await createSupabaseClient();
-  const { data: equipment, error: equipmentError } = await supabase
-    .from("equipment")
-    .select("unit_id, sector_id, environment_id, unit:units(client_id)")
-    .eq("id", equipmentId)
-    .maybeSingle();
-
-  if (equipmentError || !equipment) {
-    return { error: "Equipamento não encontrado." };
-  }
-
-  const unit = Array.isArray(equipment.unit) ? equipment.unit[0] : equipment.unit;
-  if (!unit) {
-    return { error: "Não foi possível resolver a unidade do equipamento." };
-  }
-
-  const { error } = await supabase.from("tickets").insert({
-    company_id: user.companyId,
-    client_id: unit.client_id,
-    unit_id: equipment.unit_id,
-    sector_id: equipment.sector_id,
-    environment_id: equipment.environment_id,
-    equipment_id: equipmentId,
-    title: parsed.data.title,
-    description: parsed.data.description || null,
-    priority: parsed.data.priority,
-    opened_by_user_id: user.id,
-  });
-
-  if (error) {
-    return { error: `Não foi possível abrir o chamado: ${error.message}` };
-  }
-
-  revalidateTicket();
-  revalidatePath(`/equipamentos/${equipmentId}`);
-  return { success: true };
-}
+// Criação ad-hoc pelo técnico a partir do equipamento é offline-first desde
+// a Fase 6 — ver features/tickets/offline-actions.ts
+// (createTicketFromEquipmentOffline) e TicketQuickFormDialog.
 
 /** Edita título/descrição/prioridade. Requer edit_tickets. */
 export async function updateTicket(

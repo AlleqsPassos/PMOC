@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,34 +10,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { addMeasurement, type MaintenanceFormState } from "@/features/maintenance/actions";
-import { useCloseOnSuccess } from "@/lib/hooks/use-close-on-success";
-import type { MeasurementRow, MeasurementTypeOption } from "@/features/maintenance/queries";
+import { addMeasurementOffline } from "@/features/maintenance/offline-actions";
+import type { OfflineMeasurement, OfflineMeasurementType } from "@/lib/offline/db";
 
 export function MeasurementSection({
-  workOrderId,
   recordId,
   measurements,
   types,
 }: {
-  workOrderId: string;
   recordId: string;
-  measurements: MeasurementRow[];
-  types: MeasurementTypeOption[];
+  measurements: OfflineMeasurement[];
+  types: OfflineMeasurementType[];
 }) {
-  const formRef = useRef<HTMLFormElement>(null);
   const [typeId, setTypeId] = useState("");
-  const action = addMeasurement.bind(null, recordId, workOrderId);
-  const [state, formAction, pending] = useActionState<MaintenanceFormState, FormData>(
-    action,
-    undefined,
-  );
-  useCloseOnSuccess(state, () => {
-    formRef.current?.reset();
-    setTypeId("");
-  });
+  const [isSaving, startSaving] = useTransition();
+  const valueRef = useRef<HTMLInputElement>(null);
+  const unitRef = useRef<HTMLInputElement>(null);
 
   const selectedType = types.find((t) => t.id === typeId);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!selectedType) return;
+    const rawValue = valueRef.current?.value ?? "";
+    const unit = unitRef.current?.value || null;
+
+    startSaving(async () => {
+      await addMeasurementOffline(recordId, {
+        measurementTypeId: selectedType.id,
+        typeLabel: selectedType.label,
+        valueNumeric: selectedType.dataType === "numeric" && rawValue ? Number(rawValue) : null,
+        valueText: selectedType.dataType === "text" ? rawValue || null : null,
+        unit,
+        note: null,
+      });
+      if (valueRef.current) valueRef.current.value = "";
+      setTypeId("");
+    });
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -56,13 +66,8 @@ export function MeasurementSection({
         </div>
       )}
 
-      <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-2">
-        <Select
-          name="measurementTypeId"
-          value={typeId}
-          onValueChange={setTypeId}
-          required
-        >
+      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
+        <Select value={typeId} onValueChange={setTypeId} required>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Tipo" />
           </SelectTrigger>
@@ -75,25 +80,26 @@ export function MeasurementSection({
           </SelectContent>
         </Select>
 
-        {selectedType?.dataType === "text" ? (
-          <Input name="valueText" placeholder="Valor" className="w-32" />
-        ) : (
-          <Input name="valueNumeric" type="number" step="any" placeholder="Valor" className="w-24" />
-        )}
+        <Input
+          ref={valueRef}
+          type={selectedType?.dataType === "text" ? "text" : "number"}
+          step="any"
+          placeholder="Valor"
+          className="w-24"
+        />
 
         <Input
-          name="unit"
+          ref={unitRef}
           placeholder="Unidade"
           defaultValue={selectedType?.unitDefault ?? ""}
           key={selectedType?.id}
           className="w-24"
         />
 
-        <Button type="submit" size="sm" disabled={pending || !typeId}>
-          {pending ? "Salvando…" : "Registrar"}
+        <Button type="submit" size="sm" disabled={isSaving || !typeId}>
+          {isSaving ? "Salvando…" : "Registrar"}
         </Button>
       </form>
-      {state?.error && <p className="text-destructive text-sm">{state.error}</p>}
     </div>
   );
 }

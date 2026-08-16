@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { MessageSquarePlus, Pencil, Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,12 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  createTicket,
-  createTicketFromEquipment,
-  updateTicket,
-  type TicketFormState,
-} from "@/features/tickets/actions";
+import { createTicket, updateTicket, type TicketFormState } from "@/features/tickets/actions";
 import { TICKET_PRIORITY, TICKET_PRIORITY_LABELS } from "@/features/tickets/schema";
 import type { TicketDetail } from "@/features/tickets/queries";
 import type { ClientOption } from "@/features/clients/queries";
@@ -47,27 +42,18 @@ type TicketFormDialogProps = {
   sectorOptions?: SectorOption[];
   environmentOptions?: EnvironmentOption[];
   equipmentOptions?: EquipmentOption[];
-} & (
-  | { mode: "create" }
-  | { mode: "edit"; ticket: TicketDetail }
-  | { mode: "quick"; equipmentId: string; locationLabel: string }
-);
+} & ({ mode: "create" } | { mode: "edit"; ticket: TicketDetail });
 
 /**
- * Cobre as 3 formas de criar/editar um chamado (seção 15, Fase 3):
+ * Cobre as 2 formas online de criar/editar um chamado (seção 15, Fase 3):
  * - "create": admin/despachante, localização completa em cascata.
- * - "quick": técnico, ad-hoc a partir do equipamento — localização já vem
- *   fixada (resolvida no servidor em createTicketFromEquipment).
  * - "edit": só os campos narrativos (localização não é editável no MVP).
+ * A criação ad-hoc do técnico a partir do equipamento é offline-first
+ * desde a Fase 6 — ver TicketQuickFormDialog, componente separado.
  */
 export function TicketFormDialog(props: TicketFormDialogProps) {
   const [open, setOpen] = useState(false);
-  const action =
-    props.mode === "create"
-      ? createTicket
-      : props.mode === "edit"
-        ? updateTicket.bind(null, props.ticket.id)
-        : createTicketFromEquipment.bind(null, props.equipmentId);
+  const action = props.mode === "create" ? createTicket : updateTicket.bind(null, props.ticket.id);
 
   const [state, formAction, pending] = useActionState<TicketFormState, FormData>(
     action,
@@ -109,12 +95,7 @@ export function TicketFormDialog(props: TicketFormDialogProps) {
   const environmentsForUnit = environmentOptions.filter((e) => e.unitId === unitId);
   const equipmentForUnit = equipmentOptions.filter((e) => e.unitId === unitId);
 
-  const dialogTitle =
-    props.mode === "create"
-      ? "Novo chamado"
-      : props.mode === "edit"
-        ? "Editar chamado"
-        : "Abrir chamado";
+  const dialogTitle = props.mode === "create" ? "Novo chamado" : "Editar chamado";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -124,15 +105,10 @@ export function TicketFormDialog(props: TicketFormDialogProps) {
             <Plus className="size-4" />
             Novo chamado
           </Button>
-        ) : props.mode === "edit" ? (
+        ) : (
           <Button variant="outline" size="sm">
             <Pencil className="size-4" />
             Editar
-          </Button>
-        ) : (
-          <Button size="sm" variant="outline">
-            <MessageSquarePlus className="size-4" />
-            Abrir chamado
           </Button>
         )}
       </DialogTrigger>
@@ -143,11 +119,7 @@ export function TicketFormDialog(props: TicketFormDialogProps) {
         >
           <DialogHeader>
             <DialogTitle>{dialogTitle}</DialogTitle>
-            <DialogDescription>
-              {props.mode === "quick"
-                ? `Chamado vinculado a ${props.locationLabel}.`
-                : "Descreva o problema reportado."}
-            </DialogDescription>
+            <DialogDescription>Descreva o problema reportado.</DialogDescription>
           </DialogHeader>
 
           {props.mode === "create" && (

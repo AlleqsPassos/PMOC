@@ -1407,6 +1407,45 @@ export type Database = {
           },
         ];
       };
+      sync_operations: {
+        Row: {
+          id: string;
+          company_id: string;
+          user_id: string | null;
+          idempotency_key: string;
+          entity_type: string;
+          entity_id: string;
+          status: "applied" | "duplicate" | "failed";
+          applied_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          user_id?: string | null;
+          idempotency_key: string;
+          entity_type: string;
+          entity_id: string;
+          status?: "applied" | "duplicate" | "failed";
+          applied_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["sync_operations"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "sync_operations_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sync_operations_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
