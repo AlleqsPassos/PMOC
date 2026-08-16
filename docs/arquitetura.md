@@ -14,7 +14,7 @@
 | 5 | PMOC (consolidação + PDF) | ✅ Concluída (commit `5559e0e`) |
 | 6 | Offline-first (Dexie + sync) | ✅ Concluída (commit `791285f`) |
 | 7 | Refinamento | ✅ Concluída (commit `ec4a67d`) |
-| — | Deploy inicial no Vercel | ⏳ Adiado a pedido do usuário — repo pronto (`npm run build --webpack` limpo), só falta configurar env vars no Vercel e apontar o projeto |
+| — | Deploy inicial no Vercel | ✅ Concluída — `https://pmoc-plus.vercel.app`, projeto `alex-6e84/pmoc-plus` conectado ao repo GitHub (auto-deploy a cada push em `master`) |
 
 ## Contexto
 
@@ -343,7 +343,7 @@ O segmento de path é o limite de isolamento no storage; a linha correspondente 
 - Serwist no `next.config.ts` (requer `--webpack`, não funciona com Turbopack — ver `package.json` scripts): **NetworkFirst** para navegações HTML e chamadas REST do Supabase; **CacheFirst** para assets estáticos.
 - Service worker **não** é o mecanismo de dados offline — só torna o app shell instalável/carregável offline. Escrita offline real é responsabilidade da camada Dexie/IndexedDB (seção 12, Fase 6).
 - Instalação: `InstallAppButton` escuta `beforeinstallprompt`.
-- **Nota de verificação:** registro do service worker não foi confirmável no navegador sandboxed usado durante o desenvolvimento (fetch do `/sw.js` funciona, `register()` falha silenciosamente) — headers/conteúdo/status confirmados corretos via curl direto; deve funcionar normalmente num navegador real/produção. Confirmar após o deploy no Vercel.
+- **Nota de verificação:** registro do service worker não foi confirmável no navegador sandboxed usado durante o desenvolvimento (fetch do `/sw.js` funciona, `register()` falha silenciosamente) — headers/conteúdo/status confirmados corretos via curl direto. **Confirmado em produção** após o deploy no Vercel: `navigator.serviceWorker.getRegistrations()` retorna o worker `active: true` em `https://pmoc-plus.vercel.app/` — era mesmo limitação do sandbox, não bug real.
 
 ---
 
@@ -486,7 +486,8 @@ Billing/assinatura, controle de estoque, portal do cliente, QR codes, integraç�
 - `src/proxy.ts` — refresh de sessão + gate de proteção de rota para toda a árvore `(app)`.
 - `src/lib/auth/permissions.ts` — wrapper de `has_permission()` consumido por nav/UI e reverificado server-side em toda Server Action.
 - `src/lib/hooks/use-close-on-success.ts` — fecha Dialog após Server Action bem-sucedida sem `useEffect` (o lint do projeto proíbe `setState` síncrono em effect — usa o padrão "ajustar estado durante a renderização").
-- `src/lib/offline/db.ts` — schema Dexie, âncora da implementação offline-first da Fase 6 (ainda não existe).
+- `src/lib/offline/db.ts` — schema Dexie, âncora da implementação offline-first da Fase 6.
+- `vercel.json` — fixa `buildCommand: "npm run build"` explicitamente. Sem isso, o preset zero-config do Vercel para Next.js pode rodar `next build` direto (Turbopack por default no Next 16), quebrando o Serwist — mesma restrição já documentada na seção 1/11 (`--webpack` obrigatório).
 
 ---
 
