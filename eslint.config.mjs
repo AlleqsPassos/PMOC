@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // public/sw.js* é gerado a cada build pelo @serwist/next (fonte real é
+    // src/app/sw.ts) — não é código de app, não deveria ser lintado.
+    "public/**",
   ]),
 ]);
 

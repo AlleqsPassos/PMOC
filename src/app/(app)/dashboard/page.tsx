@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CalendarClock, FileCheck2, Headset, Wrench } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { getCurrentCompany } from "@/features/companies/queries";
+import { countEquipment } from "@/features/equipment/queries";
 import {
   Card,
   CardContent,
@@ -12,35 +13,45 @@ import {
 
 export const metadata: Metadata = { title: "Dashboard — PMOC+" };
 
-// Todos os números ficam zerados/vazios de propósito — os módulos que os
-// alimentam (chamados, preventivas, equipamentos, PMOC) chegam nas Fases
-// 2-5. Nenhum gráfico decorativo: só o que já teria utilidade operacional.
-const OVERVIEW_CARDS = [
-  {
-    title: "Chamados urgentes",
-    icon: Headset,
-    description: "Nenhum chamado registrado ainda.",
-  },
-  {
-    title: "Preventivas pendentes",
-    icon: CalendarClock,
-    description: "Nenhuma preventiva cadastrada ainda.",
-  },
-  {
-    title: "Equipamentos",
-    icon: Wrench,
-    description: "Nenhum equipamento cadastrado ainda.",
-  },
-  {
-    title: "Situação do PMOC",
-    icon: FileCheck2,
-    description: "Nenhum PMOC gerado ainda.",
-  },
-];
-
+// Chamados/preventivas/PMOC ficam zerados de propósito — os módulos que os
+// alimentam chegam nas Fases 3-5. Equipamentos já mostra contagem real
+// (Fase 2). Nenhum gráfico decorativo: só o que já tem utilidade operacional.
 export default async function DashboardPage() {
-  const user = await requireUser();
-  const company = await getCurrentCompany();
+  const [user, company, equipmentCount] = await Promise.all([
+    requireUser(),
+    getCurrentCompany(),
+    countEquipment(),
+  ]);
+
+  const overviewCards = [
+    {
+      title: "Chamados urgentes",
+      icon: Headset,
+      value: "0",
+      description: "Nenhum chamado registrado ainda.",
+    },
+    {
+      title: "Preventivas pendentes",
+      icon: CalendarClock,
+      value: "0",
+      description: "Nenhuma preventiva cadastrada ainda.",
+    },
+    {
+      title: "Equipamentos",
+      icon: Wrench,
+      value: String(equipmentCount),
+      description:
+        equipmentCount === 0
+          ? "Nenhum equipamento cadastrado ainda."
+          : "Cadastrados na hierarquia cliente/unidade.",
+    },
+    {
+      title: "Situação do PMOC",
+      icon: FileCheck2,
+      value: "0",
+      description: "Nenhum PMOC gerado ainda.",
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,7 +65,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {OVERVIEW_CARDS.map((card) => (
+        {overviewCards.map((card) => (
           <Card key={card.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
@@ -63,7 +74,7 @@ export default async function DashboardPage() {
               <card.icon className="text-muted-foreground size-4" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-semibold">0</p>
+              <p className="text-2xl font-semibold">{card.value}</p>
               <p className="text-muted-foreground text-xs">
                 {card.description}
               </p>

@@ -1,4 +1,4 @@
-// Escrito à mão para refletir as migrations 0001-0006 (supabase/migrations/)
+// Escrito à mão para refletir as migrations 0001-0012 (supabase/migrations/)
 // enquanto o projeto Supabase ainda não existe. Assim que ele for criado,
 // substituir pelo output real e conferir que nada divergiu:
 //
@@ -258,6 +258,321 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      clients: {
+        Row: {
+          id: string;
+          company_id: string;
+          corporate_name: string;
+          trade_name: string | null;
+          cnpj: string | null;
+          address: Record<string, unknown> | null;
+          phone: string | null;
+          email: string | null;
+          responsible_name: string | null;
+          notes: string | null;
+          status: "active" | "inactive";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          corporate_name: string;
+          trade_name?: string | null;
+          cnpj?: string | null;
+          address?: Record<string, unknown> | null;
+          phone?: string | null;
+          email?: string | null;
+          responsible_name?: string | null;
+          notes?: string | null;
+          status?: "active" | "inactive";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["clients"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "clients_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      units: {
+        Row: {
+          id: string;
+          company_id: string;
+          client_id: string;
+          name: string;
+          address: Record<string, unknown> | null;
+          responsible_name: string | null;
+          phone: string | null;
+          notes: string | null;
+          status: "active" | "inactive";
+          deleted_at: string | null;
+          deleted_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          client_id: string;
+          name: string;
+          address?: Record<string, unknown> | null;
+          responsible_name?: string | null;
+          phone?: string | null;
+          notes?: string | null;
+          status?: "active" | "inactive";
+          deleted_at?: string | null;
+          deleted_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["units"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "units_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "units_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "units_deleted_by_fkey";
+            columns: ["deleted_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      sectors: {
+        Row: {
+          id: string;
+          company_id: string;
+          unit_id: string;
+          name: string;
+          notes: string | null;
+          deleted_at: string | null;
+          deleted_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          unit_id: string;
+          name: string;
+          notes?: string | null;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["sectors"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "sectors_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sectors_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sectors_deleted_by_fkey";
+            columns: ["deleted_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      environments: {
+        Row: {
+          id: string;
+          company_id: string;
+          unit_id: string;
+          sector_id: string | null;
+          name: string;
+          notes: string | null;
+          deleted_at: string | null;
+          deleted_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          unit_id: string;
+          sector_id?: string | null;
+          name: string;
+          notes?: string | null;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["environments"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "environments_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "environments_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "environments_sector_id_fkey";
+            columns: ["sector_id"];
+            isOneToOne: false;
+            referencedRelation: "sectors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "environments_deleted_by_fkey";
+            columns: ["deleted_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      equipment: {
+        Row: {
+          id: string;
+          company_id: string;
+          unit_id: string;
+          sector_id: string | null;
+          environment_id: string;
+          tag: string;
+          type: string | null;
+          brand: string | null;
+          model: string | null;
+          serial_number: string | null;
+          capacity_btu: number | null;
+          refrigerant: string | null;
+          voltage: string | null;
+          status: "operacional" | "atencao" | "em_manutencao" | "inativo";
+          notes: string | null;
+          deleted_at: string | null;
+          deleted_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          unit_id: string;
+          sector_id?: string | null;
+          environment_id: string;
+          tag: string;
+          type?: string | null;
+          brand?: string | null;
+          model?: string | null;
+          serial_number?: string | null;
+          capacity_btu?: number | null;
+          refrigerant?: string | null;
+          voltage?: string | null;
+          status?: "operacional" | "atencao" | "em_manutencao" | "inativo";
+          notes?: string | null;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["equipment"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "equipment_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "equipment_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "equipment_sector_id_fkey";
+            columns: ["sector_id"];
+            isOneToOne: false;
+            referencedRelation: "sectors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "equipment_environment_id_fkey";
+            columns: ["environment_id"];
+            isOneToOne: false;
+            referencedRelation: "environments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "equipment_deleted_by_fkey";
+            columns: ["deleted_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      audit_logs: {
+        Row: {
+          id: string;
+          company_id: string;
+          user_id: string | null;
+          action: string;
+          entity_type: string;
+          entity_id: string;
+          previous_data: Record<string, unknown> | null;
+          new_data: Record<string, unknown> | null;
+          source: "web" | "system";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          user_id?: string | null;
+          action: string;
+          entity_type: string;
+          entity_id: string;
+          previous_data?: Record<string, unknown> | null;
+          new_data?: Record<string, unknown> | null;
+          source?: "web" | "system";
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
+        // Sem FK real em company_id (nem em entity_id) — ver comentário na
+        // migration 0012: log é propositalmente polimórfico/desacoplado.
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

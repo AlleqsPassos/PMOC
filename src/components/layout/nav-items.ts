@@ -37,21 +37,18 @@ export const primaryNavItems: NavItem[] = [
     label: "Clientes",
     icon: Building2,
     requiredPermission: "view_clients",
-    comingSoon: true,
   },
   {
     href: "/unidades",
     label: "Unidades",
     icon: MapPin,
     requiredPermission: "view_units",
-    comingSoon: true,
   },
   {
     href: "/equipamentos",
     label: "Equipamentos",
     icon: Wrench,
     requiredPermission: "view_equipment",
-    comingSoon: true,
   },
   {
     href: "/chamados",
