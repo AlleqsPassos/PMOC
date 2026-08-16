@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { UserPlus } from "lucide-react";
+import { Copy, UserPlus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ import {
   createInvite,
   type CreateInviteState,
 } from "@/features/invites/actions";
+import { inviteUrl } from "@/features/invites/invite-url";
 
 export function InviteTechnicianForm() {
   const [open, setOpen] = useState(false);
@@ -25,6 +27,15 @@ export function InviteTechnicianForm() {
     createInvite,
     undefined,
   );
+
+  async function copyLink(code: string) {
+    try {
+      await navigator.clipboard.writeText(inviteUrl(code));
+      toast.success("Link copiado!");
+    } catch {
+      toast.error("Não foi possível copiar — copie manualmente.");
+    }
+  }
 
   return (
     <Dialog
@@ -45,13 +56,22 @@ export function InviteTechnicianForm() {
             <DialogHeader>
               <DialogTitle>Convite gerado</DialogTitle>
               <DialogDescription>
-                Repasse este código ao técnico (WhatsApp, e-mail) — ele acessa
-                a página de ativação e digita o código para definir as
-                próprias credenciais.
+                Repasse este link ao técnico (WhatsApp, e-mail) — é só abrir
+                e definir as próprias credenciais, nada pra digitar à mão.
               </DialogDescription>
             </DialogHeader>
-            <div className="bg-muted rounded-md p-4 text-center font-mono text-lg tracking-widest">
-              {state.code}
+            <div className="bg-muted flex items-center justify-between gap-2 rounded-md p-3">
+              <span className="truncate font-mono text-sm">{inviteUrl(state.code)}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => copyLink(state.code!)}
+                aria-label="Copiar link de convite"
+                title="Copiar link"
+              >
+                <Copy className="size-4" />
+              </Button>
             </div>
             <DialogFooter>
               <Button onClick={() => setOpen(false)}>Concluir</Button>

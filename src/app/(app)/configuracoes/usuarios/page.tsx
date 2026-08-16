@@ -5,6 +5,7 @@ import { listCompanyUsers } from "@/features/users/queries";
 import { listPendingInvites } from "@/features/invites/queries";
 import { InviteTechnicianForm } from "@/features/invites/components/invite-technician-form";
 import { RevokeInviteButton } from "@/features/invites/components/revoke-invite-button";
+import { CopyInviteLinkButton } from "@/features/invites/components/copy-invite-link-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -125,7 +126,8 @@ export default async function UsuariosPage() {
                     <TableCell className="text-muted-foreground">
                       {new Date(invite.expiresAt).toLocaleDateString("pt-BR")}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="flex items-center gap-1">
+                      <CopyInviteLinkButton code={invite.code} />
                       <RevokeInviteButton inviteId={invite.id} />
                     </TableCell>
                   </TableRow>
