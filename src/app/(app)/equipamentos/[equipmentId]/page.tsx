@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { requireUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { getEquipmentById } from "@/features/equipment/queries";
@@ -17,7 +19,10 @@ import { listTicketsByEquipment } from "@/features/tickets/queries";
 import { TicketFormDialog } from "@/features/tickets/components/ticket-form-dialog";
 import { TicketStatusBadge } from "@/features/tickets/components/ticket-status-badge";
 import { TicketPriorityBadge } from "@/features/tickets/components/ticket-priority-badge";
+import { listMaintenanceRecordsByEquipment } from "@/features/maintenance/queries";
+import { WORK_ORDER_TYPE_LABELS } from "@/features/work-orders/schema";
 import { AccessDenied } from "@/components/shared/access-denied";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Equipamento — PMOC+" };
@@ -44,6 +49,7 @@ export default async function EquipamentoDetalhePage(
     canEdit,
     tickets,
     canCreateTicket,
+    maintenanceHistory,
   ] = await Promise.all([
     listClientOptions(),
     listUnitOptions(),
@@ -52,6 +58,7 @@ export default async function EquipamentoDetalhePage(
     hasPermission("edit_equipment"),
     listTicketsByEquipment(equipmentId),
     hasPermission("create_tickets"),
+    listMaintenanceRecordsByEquipment(equipmentId),
   ]);
 
   const unitOptionsForForm = unitOptions.map((u) => ({
@@ -166,10 +173,39 @@ export default async function EquipamentoDetalhePage(
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Histórico de manutenção</CardTitle>
-          <CardDescription>
-            Nenhum registro ainda — ordens de serviço e laudos chegam na Fase 4.
-          </CardDescription>
+          <CardDescription>Laudos de ordens de serviço concluídas para este equipamento.</CardDescription>
         </CardHeader>
+        <CardContent>
+          {maintenanceHistory.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Nenhum registro ainda.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {maintenanceHistory.map((h) => (
+                <Link
+                  key={h.id}
+                  href={`/ordens-servico/${h.workOrderId}/atender/${h.id}`}
+                  className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm hover:bg-accent/50"
+                >
+                  <span className="flex flex-col">
+                    <span>{h.workOrderTitle}</span>
+                    {h.diagnosis && (
+                      <span className="text-muted-foreground text-xs">{h.diagnosis}</span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-2 text-xs">
+                    <Badge variant="outline">{WORK_ORDER_TYPE_LABELS[h.workOrderType]}</Badge>
+                    <span className="text-muted-foreground">
+                      {h.technicianName ?? "—"} ·{" "}
+                      {h.completedAt
+                        ? format(new Date(h.completedAt), "dd/MM/yyyy", { locale: ptBR })
+                        : "—"}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
       </Card>
     </div>
   );

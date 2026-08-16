@@ -8,12 +8,15 @@ import { requireUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { getWorkOrderDetail } from "@/features/work-orders/queries";
 import { listCompanyUsers } from "@/features/users/queries";
+import { listPartsRequestsByWorkOrder } from "@/features/parts-requests/queries";
 import { WorkOrderStatusSelect } from "@/features/work-orders/components/work-order-status-select";
 import { WorkOrderStatusBadge } from "@/features/work-orders/components/work-order-status-badge";
 import { WorkOrderAssignSelect } from "@/features/work-orders/components/work-order-assign-select";
 import { WORK_ORDER_TYPE_LABELS } from "@/features/work-orders/schema";
+import { PartsRequestStatusSelect } from "@/features/parts-requests/components/parts-request-status-select";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Ordem de serviço — PMOC+" };
@@ -32,13 +35,16 @@ export default async function OrdemServicoDetalhePage(
   const workOrder = await getWorkOrderDetail(workOrderId);
   if (!workOrder) notFound();
 
-  const [canManage, canExecute, companyUsers] = await Promise.all([
+  const [canManage, canExecute, canManageParts, companyUsers, partsRequests] = await Promise.all([
     hasPermission("manage_work_orders"),
     hasPermission("execute_work_order"),
+    hasPermission("manage_parts_requests"),
     listCompanyUsers(),
+    listPartsRequestsByWorkOrder(workOrderId),
   ]);
 
   const canChangeStatus = canManage || canExecute;
+  const canOpenAtendimento = canManage || canExecute;
   const assignableUsers = companyUsers
     .filter((u) => u.status === "active")
     .map((u) => ({ id: u.id, fullName: u.fullName }));
@@ -163,7 +169,48 @@ export default async function OrdemServicoDetalhePage(
                     <Badge variant={mr.status === "completed" ? "default" : "outline"}>
                       {mr.status === "completed" ? "Concluído" : "Rascunho"}
                     </Badge>
+                    {canOpenAtendimento && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/ordens-servico/${workOrder.id}/atender/${mr.id}`}>
+                          Atender
+                        </Link>
+                      </Button>
+                    )}
                   </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Peças solicitadas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {partsRequests.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Nenhuma peça solicitada ainda.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {partsRequests.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm"
+                >
+                  <span>
+                    {p.partName} × {p.quantity}
+                    <span className="text-muted-foreground"> — {p.requestedByName}</span>
+                  </span>
+                  {canManageParts ? (
+                    <PartsRequestStatusSelect
+                      requestId={p.id}
+                      workOrderId={workOrder.id}
+                      status={p.status}
+                    />
+                  ) : (
+                    <Badge variant="outline">{p.status}</Badge>
+                  )}
                 </div>
               ))}
             </div>

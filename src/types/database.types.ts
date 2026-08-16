@@ -970,6 +970,341 @@ export type Database = {
           },
         ];
       };
+      checklist_templates: {
+        Row: {
+          id: string;
+          company_id: string;
+          name: string;
+          maintenance_type: "preventiva" | "corretiva" | "ambos";
+          equipment_type: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          name: string;
+          maintenance_type: "preventiva" | "corretiva" | "ambos";
+          equipment_type?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["checklist_templates"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "checklist_templates_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      checklist_template_items: {
+        Row: {
+          id: string;
+          company_id: string;
+          checklist_template_id: string;
+          label: string;
+          order_index: number;
+          is_required: boolean;
+          allows_other: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          checklist_template_id: string;
+          label: string;
+          order_index?: number;
+          is_required?: boolean;
+          allows_other?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["checklist_template_items"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "checklist_template_items_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "checklist_template_items_checklist_template_id_fkey";
+            columns: ["checklist_template_id"];
+            isOneToOne: false;
+            referencedRelation: "checklist_templates";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      maintenance_record_checklist_items: {
+        Row: {
+          id: string;
+          company_id: string;
+          maintenance_record_id: string;
+          template_item_id: string | null;
+          label_snapshot: string;
+          status: "ok" | "nao_ok" | "nao_aplica";
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          maintenance_record_id: string;
+          template_item_id?: string | null;
+          label_snapshot: string;
+          status?: "ok" | "nao_ok" | "nao_aplica";
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["maintenance_record_checklist_items"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_record_checklist_items_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_record_checklist_items_maintenance_record_id_fkey";
+            columns: ["maintenance_record_id"];
+            isOneToOne: false;
+            referencedRelation: "maintenance_records";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_record_checklist_items_template_item_id_fkey";
+            columns: ["template_item_id"];
+            isOneToOne: false;
+            referencedRelation: "checklist_template_items";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      measurement_types: {
+        Row: {
+          id: string;
+          company_id: string | null;
+          key: string;
+          label: string;
+          unit_default: string | null;
+          data_type: "numeric" | "text";
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id?: string | null;
+          key: string;
+          label: string;
+          unit_default?: string | null;
+          data_type: "numeric" | "text";
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["measurement_types"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "measurement_types_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      measurements: {
+        Row: {
+          id: string;
+          company_id: string;
+          maintenance_record_id: string;
+          measurement_type_id: string;
+          value_numeric: number | null;
+          value_text: string | null;
+          unit: string | null;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          maintenance_record_id: string;
+          measurement_type_id: string;
+          value_numeric?: number | null;
+          value_text?: string | null;
+          unit?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["measurements"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "measurements_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "measurements_maintenance_record_id_fkey";
+            columns: ["maintenance_record_id"];
+            isOneToOne: false;
+            referencedRelation: "maintenance_records";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "measurements_measurement_type_id_fkey";
+            columns: ["measurement_type_id"];
+            isOneToOne: false;
+            referencedRelation: "measurement_types";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "measurements_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      attachments: {
+        Row: {
+          id: string;
+          company_id: string;
+          work_order_id: string;
+          maintenance_record_id: string | null;
+          equipment_id: string;
+          category: "equipamento" | "etiqueta" | "problema" | "antes" | "depois" | "outro";
+          storage_path: string;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          work_order_id: string;
+          maintenance_record_id?: string | null;
+          equipment_id: string;
+          category: "equipamento" | "etiqueta" | "problema" | "antes" | "depois" | "outro";
+          storage_path: string;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          uploaded_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["attachments"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "attachments_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attachments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attachments_maintenance_record_id_fkey";
+            columns: ["maintenance_record_id"];
+            isOneToOne: false;
+            referencedRelation: "maintenance_records";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attachments_equipment_id_fkey";
+            columns: ["equipment_id"];
+            isOneToOne: false;
+            referencedRelation: "equipment";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      parts_requests: {
+        Row: {
+          id: string;
+          company_id: string;
+          work_order_id: string;
+          maintenance_record_id: string | null;
+          requested_by_user_id: string;
+          part_name: string;
+          quantity: number;
+          note: string | null;
+          status: "Solicitada" | "Em andamento" | "Aguardando" | "Resolvida" | "Cancelada";
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          work_order_id: string;
+          maintenance_record_id?: string | null;
+          requested_by_user_id: string;
+          part_name: string;
+          quantity?: number;
+          note?: string | null;
+          status?: "Solicitada" | "Em andamento" | "Aguardando" | "Resolvida" | "Cancelada";
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["parts_requests"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "parts_requests_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "parts_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "parts_requests_maintenance_record_id_fkey";
+            columns: ["maintenance_record_id"];
+            isOneToOne: false;
+            referencedRelation: "maintenance_records";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "parts_requests_requested_by_user_id_fkey";
+            columns: ["requested_by_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "parts_requests_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {

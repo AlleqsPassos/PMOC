@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileCheck2,
   ListChecks,
+  ListTodo,
   Users,
   ShieldCheck,
   History,
@@ -83,6 +84,12 @@ export const settingsNavItems: NavItem[] = [
     label: "Usuários",
     icon: Users,
     requiredPermission: "manage_users",
+  },
+  {
+    href: "/configuracoes/checklist-templates",
+    label: "Templates de checklist",
+    icon: ListTodo,
+    requiredPermission: "manage_checklist_templates",
   },
   {
     href: "/configuracoes/permissoes",
