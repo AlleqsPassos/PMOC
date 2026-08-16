@@ -12,7 +12,7 @@
 | 3 | Chamados | ✅ Concluída (commit `6b90296`) |
 | 4 | Manutenção (OS, preventivas, checklist, medições, anexos, peças) | ✅ Concluída (commits `bda1481` 4.1 + `20a56ad` 4.2) |
 | 5 | PMOC (consolidação + PDF) | ✅ Concluída (commit `5559e0e`) |
-| 6 | Offline-first (Dexie + sync) | ⏳ Pendente |
+| 6 | Offline-first (Dexie + sync) | ✅ Concluída (commit `791285f`) |
 | 7 | Refinamento | ⏳ Pendente |
 | — | Deploy inicial no Vercel | ⏳ Adiado a pedido do usuário — repo pronto (`npm run build --webpack` limpo), só falta configurar env vars no Vercel e apontar o projeto |
 
@@ -347,7 +347,7 @@ O segmento de path é o limite de isolamento no storage; a linha correspondente 
 
 ---
 
-## 12. Offline-first (decisão crítica, Fase 6 — não implementado ainda)
+## 12. Offline-first (decisão crítica — implementado na Fase 6, ver seção 15 pros detalhes de implementação e bugs corrigidos)
 
 **Recomendação: Dexie.js (IndexedDB) + outbox/fila de sincronização feita à mão, não WatermelonDB/RxDB/PowerSync, no MVP.**
 
@@ -358,19 +358,23 @@ O segmento de path é o limite de isolamento no storage; a linha correspondente 
 
 **Decisão de schema já tomada** (todas as PKs relevantes já são UUID): toda tabela gravável offline (tickets, work_orders, maintenance_records, measurements, attachments-metadados, parts_requests, respostas de checklist) deve usar **PK UUID gerável no cliente** (default `gen_random_uuid()` no servidor, mas o cliente pode fornecer seu próprio UUID no insert). É a espinha dorsal de idempotência: registro criado offline gera o UUID no dispositivo, salvo no Dexie sob esse id, depois enviado via `upsert(... on conflict (id) do update)` — retries são naturalmente idempotentes porque a PK nunca muda.
 
-**Outbox** (planejado): tabela Dexie `outbox`: `{id, entity_type, entity_id, operation: create|update|soft_delete, payload, created_at, attempt_count, last_error, status: pending|syncing|synced|error}`. Toda leitura na UI do técnico deve passar pelo Dexie (`useLiveQuery`), nunca direto no Supabase — offline é o caminho padrão, não um fallback.
+**Outbox** — tabela Dexie `outbox`: `{id, entityTable, entityId, operation: insert|update, payload, guardUpdatedAt?, createdAt, attemptCount, lastAttemptAt, lastError, status: pending|syncing|synced|error}` (`src/lib/offline/db.ts`). Toda leitura na UI do técnico passa pelo Dexie (`useLiveQuery`), nunca direto no Supabase.
 
-**Conflitos**: cada OS/maintenance_record é essencialmente single-writer (o técnico designado). Estratégia planejada: **concorrência otimista com update guardado** para transições de status; **last-write-wins por timestamp de servidor** para campos narrativos; **aditivo, sem disputa** para fotos e medições.
+**Conflitos**: cada OS/maintenance_record é essencialmente single-writer (o técnico designado). Implementado: **concorrência otimista com update guardado** só na transição terminal "concluir atendimento" (`guardUpdatedAt` comparado contra o `updated_at` real do servidor antes de aplicar — se divergiu, descarta o otimista local, repuxa a verdade e avisa via toast); **last-write-wins simples** para "iniciar" e campos narrativos (guardar todas as mutações encadeadas do mesmo registro criaria falso conflito com a própria edição sequencial do técnico); **aditivo, sem disputa** para fotos e medições. Decisão consciente de não guardar tudo — ver seção 15 pro raciocínio completo.
 
 **Ressalva de plataforma crítica**: iOS Safari (relevante para iPads/iPhones do hospital) tem suporte historicamente limitado/inexistente à Background Sync API. O motor de sync não pode depender só dela — disparar sync em foreground/`visibilitychange`, em eventos `online`, e com fallback de polling em foreground.
 
 ---
 
-## 13. Sincronização (Fase 6 — não implementado ainda)
+## 13. Sincronização (implementado na Fase 6, ver seção 15)
 
-Estados visíveis na UI (badge no topbar, hoje placeholder estático "Online" em `SyncStatusBadge`): `Offline`, `Online`, `Sincronizando`, `Sincronizado`, `Erro de sincronização` — de uma store client-side combinando `navigator.onLine`, eventos `online`/`offline` e tamanho da fila do outbox.
+Estados visíveis na UI (badge no topbar, `SyncStatusBadge`/`src/lib/offline/sync-store.ts`): `Offline`, `Online`, `Sincronizando`, `Sincronizado`, `Erro de sincronização` — de uma store client-side combinando `navigator.onLine`, eventos `online`/`offline` e o tamanho/status da fila do outbox via `useLiveQuery`.
 
-Fluxo planejado: reconexão (ou app em foreground) → `drainOutbox()` → processa a fila **em ordem de dependência** → cada item enviado via `upsert` idempotente ou RPC SECURITY DEFINER → sucesso marca `synced`; falha incrementa `attempt_count`, aplica backoff exponencial. Server-side, ledger `sync_operations` (constraint unique em `idempotency_key`) protege contra aplicação duplicada.
+Fluxo implementado: reconexão (ou app em foreground, ou poll a cada 30s) → **drena primeiro, só then puxa** (`drainThenPull()`) → `drainOutbox()` processa a fila em ordem de criação → cada item de `operation: 'insert'` via `upsert` idempotente, cada item de `operation: 'update'` via `update().eq('id', ...)` **puro, nunca upsert** (ver nota de bug real abaixo) → sucesso remove da fila; falha marca `error` com backoff exponencial (retry respeitando o tempo decorrido, sem bloquear o resto da fila). Server-side, ledger `sync_operations` (constraint unique em `idempotency_key` = id do próprio item do outbox) protege contra aplicação duplicada.
+
+**Bug real encontrado e corrigido no QA desta fase — upsert em update parcial quebra RLS/NOT NULL:** `.upsert(payload, {onConflict:'id'})` vira `INSERT ... ON CONFLICT (id) DO UPDATE` no Postgres. Mesmo quando a linha já existe e só uma atualização é pretendida, o Postgres constrói e valida a linha do INSERT hipotético (checando RLS `WITH CHECK` e constraints NOT NULL) **antes** de sequer detectar o conflito — um payload parcial (só os campos que mudaram, sem `company_id`/`work_order_id`/`equipment_id`) falha com "new row violates row-level security policy" ou "null value in column ... violates not-null constraint", mesmo a UPDATE em si sendo perfeitamente válida. Corrigido separando por `operation` no drain: só `insert` usa `upsert`; `update` usa `update()` puro, que nunca constrói uma linha de INSERT e portanto nunca dispara essa validação. Lição para qualquer código futuro que grave via outbox: **nunca usar upsert para uma mutação que é só update.**
+
+**Ordem pull vs. drain — outro bug real:** puxar dados do servidor *antes* de drenar o outbox sobrescreve (via `bulkPut`) a edição otimista local com o estado *anterior* do servidor, porque a mutação local ainda não chegou lá — a UI "volta no tempo" por um instante (ex: um laudo salvo offline parece sumir) até o drain, que roda depois, reaplicar. Corrigido: `drainThenPull()` — sempre drena primeiro, pull só depois, em todo gatilho (reconexão, poll, botão manual de atualizar).
 
 ---
 
@@ -435,8 +439,21 @@ Consolidação por cliente/período entre todas as unidades daquele cliente, num
 
 Verificado: build/lint limpos; fluxo manual completo de ponta a ponta (chamado→OS→execução→laudo→conclusão→geração de PMOC→download real do PDF a partir do bucket, signed URL confirmada servindo o binário); caso de período sem OS concluída testado (erro claro, nenhuma linha órfã em `pmocs`); RLS confirmado com empresa nova (`/pmoc` vazio, acesso direto a `/pmoc/[id]` de outra empresa → 404); permissão do Responsável Técnico confirmada (nav item oculto, página bloqueada com `AccessDenied`); dashboard com contagem real de PMOCs gerados.
 
-### FASE 6 — Offline-first (a fazer)
-Schema Dexie completo + outbox + motor de sync (seções 12/13), UI do técnico reescrita para ler/escrever local-first, estados de sync visíveis, banners de conflito, upserts/RPCs idempotentes, QA em modo avião iOS/Android. Revisitar PowerSync se o Dexie feito à mão se mostrar insuficiente em escala real.
+### FASE 6 — Offline-first ✅ concluída
+
+Camada de dados offline de verdade (IndexedDB via Dexie) para a **UI do técnico** — decisão de escopo explícita: telas de admin/despachante (clientes/unidades/equipamentos, geração de OS, preventivas, templates de checklist, PMOC, usuários) continuam só online, são ações tipicamente feitas com conectividade e reescrevê-las não estava no briefing.
+
+- `src/lib/offline/db.ts` — schema Dexie completo: tabelas graváveis (`maintenanceRecords`, `checklistItems`, `measurements`, `partsRequests`, `attachments`+`attachmentBlobs`, `tickets`), referência só-leitura populada pelo pull (`workOrders`, `equipment`, `checklistTemplates`+itens, `measurementTypes`), infra (`outbox`, `meta`). PK de toda tabela gravável = `id` (uuid) gerado no cliente via `crypto.randomUUID()`, mesma decisão de schema da Fase 1.
+- `pull-sync.ts` — `pullTechnicianData()` baixa tudo que o técnico logado precisa (OS atribuídas + seus registros/checklist/medições/peças/anexos-metadados, chamados dele, catálogo de referência da empresa inteira — dataset pequeno, hospital único).
+- `outbox.ts` + `sync-engine.ts` — `enqueue()` grava a fila; `drainOutbox()` processa em ordem de criação; `requestSync()`/`drainThenPull()`/`setupSyncTriggers()` (reconexão + foreground + poll de 30s, ressalva iOS Safari sem Background Sync).
+- `sync-store.ts` + `SyncStatusBadge` — os 5 estados reais (seção 13), substituindo o placeholder estático das Fases 1-5.
+- `sync_operations` (migrations 0034-0035) — ledger de idempotência server-side.
+- **UI reescrita local-first**: `/minhas-atividades` (`MinhasAtividadesList`, `useLiveQuery`) e o fluxo de atendimento inteiro (`AtendimentoWizard` + `features/maintenance/offline-actions.ts`, `features/attachments/offline-actions.ts`, `features/parts-requests/offline-actions.ts`) — checklist (aplicar template, item ad-hoc, mudar status), medições, fotos (Blob local, upload adiado pro drain), peças, laudo incremental, iniciar/concluir atendimento. Chamado ad-hoc do equipamento também offline (`TicketQuickFormDialog` + `features/tickets/offline-actions.ts`).
+- Server Actions que ficaram sem nenhum caller depois da reescrita foram removidas: `features/maintenance/actions.ts` (arquivo inteiro), `features/attachments/actions.ts` (arquivo inteiro), `createPartsRequest`, `createTicketFromEquipment` — mantido só o que ainda serve telas de admin (`updatePartsRequestStatus`, `createTicket`/`updateTicket`).
+- **Três bugs reais encontrados e corrigidos no QA "modo avião"** (detalhados na seção 13): ordem pull-antes-do-drain sobrescrevendo edição otimista; `upsert()` em update parcial derrubando RLS/NOT NULL (Postgres valida a linha do INSERT hipotético do `ON CONFLICT DO UPDATE` antes de checar o conflito); erro do outbox exibindo `[object Object]` por `PostgrestError` não ser `instanceof Error`. Mais um bug de hydration no `SyncStatusBadge` (`navigator.onLine`/IndexedDB não existem no SSR) corrigido com `useSyncExternalStore`.
+- QA "modo avião" nesta sessão foi emulado via `navigator.onLine` sobrescrito + eventos `online`/`offline` disparados manualmente (o ambiente de browser disponível é MCP, sem device físico) — limitação documentada, não um teste de device real.
+
+Verificado: build/lint limpos; fluxo completo — abrir atendimento online (pull já feito) → forçar offline → preencher checklist/medição/foto/peça/laudo/iniciar → conferir tudo salvo local com o badge "Offline" e fila > 0 → forçar online → drain automático → conferir via página de detalhe da OS (server-side, não Dexie) que os dados chegaram no Supabase com os mesmos ids gerados no cliente, incluindo a conclusão do atendimento sem falso conflito de guarda. Revisitar PowerSync (seção 12) só se este Dexie feito à mão se mostrar insuficiente em escala real — não é decisão desta fase.
 
 ### FASE 7 — Refinamento (a fazer)
 Polimento de UX, performance (otimização de queries, compressão de imagem pré-upload), acessibilidade, widgets de dashboard mais ricos porém não decorativos, UI de visualização de auditoria, polimento da UI de permissões, revisão de RLS/segurança, documentação, confirmação de que os pontos de extensão (campos nullable já presentes) seguem abertos para os itens futuros fora de escopo — cobrança, estoque, portal do cliente, QR, WhatsApp API, push, assinatura digital — sem exigir migração destrutiva.
