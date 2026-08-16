@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { getTodayDateString } from "@/lib/today-date";
 import type { WorkOrderStatus, WorkOrderType } from "@/features/work-orders/schema";
 
 function firstOf<T>(value: T | T[] | null): T | null {
@@ -161,4 +162,21 @@ export async function getWorkOrderDetail(workOrderId: string): Promise<WorkOrder
       technicianName: firstOf(r.technician)?.full_name ?? null,
     })),
   };
+}
+
+/** OS ainda não concluídas/canceladas com scheduled_date no passado — card "OS atrasadas" do dashboard. */
+export async function countOverdueWorkOrders(): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("work_orders")
+    .select("id", { count: "exact", head: true })
+    .in("status", ["aberta", "em_andamento"])
+    .lt("scheduled_date", getTodayDateString());
+
+  if (error) {
+    console.error("[countOverdueWorkOrders]", error.message);
+    return 0;
+  }
+
+  return count ?? 0;
 }

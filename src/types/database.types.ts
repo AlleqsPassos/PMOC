@@ -572,7 +572,17 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
         // Sem FK real em company_id (nem em entity_id) — ver comentário na
         // migration 0012: log é propositalmente polimórfico/desacoplado.
-        Relationships: [];
+        // user_id ganhou FK real na 0036 (Fase 7) — habilita embedded select
+        // `user:users(full_name)` na tela de auditoria.
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tickets: {
         Row: {
@@ -1482,6 +1492,10 @@ export type Database = {
           user_id: string | null;
           created_at: string;
         }[];
+      };
+      log_permission_change: {
+        Args: { p_user_id: string; p_permission_key: string; p_mode: string };
+        Returns: undefined;
       };
     };
     Enums: Record<string, never>;

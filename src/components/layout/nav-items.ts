@@ -95,13 +95,11 @@ export const settingsNavItems: NavItem[] = [
     label: "Permissões",
     icon: ShieldCheck,
     requiredPermission: "manage_permissions",
-    comingSoon: true,
   },
   {
     href: "/auditoria",
     label: "Auditoria",
     icon: History,
     requiredPermission: "view_audit_log",
-    comingSoon: true,
   },
 ];

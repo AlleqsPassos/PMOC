@@ -93,6 +93,7 @@ export function SyncStatusBadge() {
         onClick={handleRefresh}
         disabled={isRefreshing || status === "offline"}
         title="Atualizar dados offline agora"
+        aria-label="Atualizar dados offline agora"
       >
         <RefreshCw className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
       </Button>

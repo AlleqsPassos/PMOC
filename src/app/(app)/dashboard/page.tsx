@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
-import { CalendarClock, FileCheck2, Headset, Wrench } from "lucide-react";
+import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { AlertTriangle, CalendarClock, FileCheck2, Headset, Wrench } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
 import { getCurrentCompany } from "@/features/companies/queries";
 import { countEquipment } from "@/features/equipment/queries";
 import { countUrgentOpenTickets } from "@/features/tickets/queries";
 import { countActivePreventivePlans } from "@/features/preventive-plans/queries";
+import { countOverdueWorkOrders } from "@/features/work-orders/queries";
 import { countGeneratedPmocs } from "@/features/pmoc/queries";
+import { listRecentAuditActivity } from "@/features/audit/queries";
+import { ACTION_LABELS, ENTITY_TYPE_LABELS, isAuditEntityType } from "@/features/audit/schema";
 import {
   Card,
   CardContent,
@@ -16,8 +23,8 @@ import {
 
 export const metadata: Metadata = { title: "Dashboard — PMOC+" };
 
-// Todos os 4 cards já mostram dado real desde a Fase 5. Nenhum gráfico
-// decorativo: só o que já tem utilidade operacional.
+// Todos os cards mostram dado real (5º card "OS atrasadas" chegou na Fase
+// 7). Nenhum gráfico decorativo: só o que já tem utilidade operacional.
 export default async function DashboardPage() {
   const [
     user,
@@ -25,15 +32,21 @@ export default async function DashboardPage() {
     equipmentCount,
     urgentTicketsCount,
     activePreventivePlansCount,
+    overdueWorkOrdersCount,
     generatedPmocsCount,
+    canViewAudit,
   ] = await Promise.all([
     requireUser(),
     getCurrentCompany(),
     countEquipment(),
     countUrgentOpenTickets(),
     countActivePreventivePlans(),
+    countOverdueWorkOrders(),
     countGeneratedPmocs(),
+    hasPermission("view_audit_log"),
   ]);
+
+  const recentActivity = canViewAudit ? await listRecentAuditActivity(5) : [];
 
   const overviewCards = [
     {
@@ -62,6 +75,15 @@ export default async function DashboardPage() {
         equipmentCount === 0
           ? "Nenhum equipamento cadastrado ainda."
           : "Cadastrados na hierarquia cliente/unidade.",
+    },
+    {
+      title: "OS atrasadas",
+      icon: AlertTriangle,
+      value: String(overdueWorkOrdersCount),
+      description:
+        overdueWorkOrdersCount === 0
+          ? "Nenhuma OS atrasada."
+          : "Data programada já passou, ainda não concluídas.",
     },
     {
       title: "Situação do PMOC",
@@ -104,15 +126,40 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Pendências</CardTitle>
-          <CardDescription>
-            Nada por aqui ainda — os módulos de clientes, equipamentos,
-            chamados e preventivas chegam nas próximas fases.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      {canViewAudit && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Atividade recente</CardTitle>
+            <CardDescription>Últimos eventos registrados na empresa.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentActivity.length === 0 ? (
+              <p className="text-muted-foreground text-sm">Nenhuma atividade registrada ainda.</p>
+            ) : (
+              <ul className="flex flex-col gap-2 text-sm">
+                {recentActivity.map((entry) => (
+                  <li key={entry.id} className="text-muted-foreground">
+                    <span className="text-foreground font-medium">
+                      {entry.userName ?? "Sistema"}
+                    </span>{" "}
+                    {(ACTION_LABELS[entry.action] ?? entry.action).toLowerCase()} —{" "}
+                    {isAuditEntityType(entry.entityType)
+                      ? ENTITY_TYPE_LABELS[entry.entityType]
+                      : entry.entityType}{" "}
+                    · {formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true, locale: ptBR })}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link
+              href="/auditoria"
+              className="text-primary mt-3 inline-block text-sm hover:underline"
+            >
+              Ver auditoria completa →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

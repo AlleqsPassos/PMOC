@@ -9,6 +9,7 @@ import {
   MAX_ATTACHMENTS_PER_CATEGORY,
   type AttachmentCategory,
 } from "@/features/attachments/schema";
+import { compressImage } from "@/lib/images/compress-image";
 import type { OfflineAttachment } from "@/lib/offline/db";
 
 /**
@@ -40,15 +41,18 @@ export function AttachmentUploader({
   const atLimit = existing.length >= MAX_ATTACHMENTS_PER_CATEGORY;
 
   function handleFile(file: File) {
-    const objectUrl = URL.createObjectURL(file);
     startTransition(async () => {
+      // Comprime antes do preview e do registro — tamanho/mime enfileirados
+      // no outbox já são os do arquivo comprimido (ver compress-image.ts).
+      const compressed = await compressImage(file);
+      const objectUrl = URL.createObjectURL(compressed);
       const result = await recordAttachmentOffline({
         companyId,
         workOrderId,
         maintenanceRecordId,
         equipmentId,
         category,
-        file,
+        file: compressed,
       });
       if (result.error) {
         toast.error(result.error);
