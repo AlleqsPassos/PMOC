@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PMOC+
 
-## Getting Started
+SaaS multi-tenant (web/PWA) para empresas de manutenção de climatização gerenciarem operação de campo (clientes, unidades, equipamentos, chamados, ordens de serviço, preventivas) e gerarem documentação de PMOC (Plano de Manutenção, Operação e Controle).
 
-First, run the development server:
+A arquitetura completa — entidades, RLS, permissões, decisões de offline-first, plano de fases e status atual do projeto — está documentada em **[docs/arquitetura.md](docs/arquitetura.md)**. Leia esse arquivo antes de mexer em qualquer coisa relacionada a schema, RLS ou multi-tenancy.
+
+## Stack
+
+Next.js 16 (App Router, Webpack — Serwist ainda não suporta Turbopack) + React 19 + TypeScript + Tailwind v4 + shadcn/ui, Supabase (Postgres/Auth/Storage) com Row Level Security, PWA via Serwist.
+
+## Rodando localmente
 
 ```bash
+npm install
+cp .env.local.example .env.local   # preencher com as credenciais do projeto Supabase
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre em `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Banco de dados
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+O schema vive em `supabase/migrations/*.sql`, numerado sequencialmente. O projeto Supabase não está linkado via CLI (`supabase link`) — para aplicar migrations novas, gere o arquivo combinado e cole no SQL Editor do dashboard Supabase:
 
-## Learn More
+```bash
+cat supabase/migrations/000N_*.sql > supabase/migrations_combined.sql
+```
 
-To learn more about Next.js, take a look at the following resources:
+(`migrations_combined.sql` é gitignored — é só um artefato de conveniência para colar, a fonte de verdade é sempre `supabase/migrations/`.)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Depois de aplicar migrations que criam/alteram tabelas, atualize `src/types/database.types.ts` à mão (ver comentário no topo do arquivo — inclui `Relationships` reais, exigido pelo parser de tipos do `@supabase/postgrest-js` para joins embutidos tiparem corretamente).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Rotas dinâmicas / `PageProps`
 
-## Deploy on Vercel
+Depois de criar uma rota nova com parâmetro (`[id]`), rode `npx next typegen` para gerar o tipo `PageProps<'/rota/[id]'>` usado nas páginas.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Build e lint
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build --webpack
+npm run lint
+```
+
+Ambos devem terminar sem erros antes de qualquer commit.
+
+## Deploy
+
+Ainda não feito (adiado). Ver seção "Status atual" em [docs/arquitetura.md](docs/arquitetura.md).
