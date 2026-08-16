@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.local.example
 
 # vercel
 .vercel
@@ -39,3 +40,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# gerado sob demanda para colar no SQL Editor do Supabase — fonte da
+# verdade fica em supabase/migrations/*.sql
+supabase/migrations_combined.sql
+
+# service worker gerado pelo build (@serwist/next) — fonte é src/app/sw.ts
+/public/sw.js
+/public/sw.js.map
+/public/swe-worker-*.js
