@@ -1,13 +1,19 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  completeMaintenanceRecordOffline,
-  startMaintenanceRecordOffline,
-} from "@/features/maintenance/offline-actions";
+import { startMaintenanceRecordOffline } from "@/features/maintenance/offline-actions";
 
+/**
+ * "Iniciar atividade" — e, desde a Fase 10, é isto que também move a **OS** para
+ * "em andamento" (dentro de `startMaintenanceRecordOffline`), para o
+ * administrador ver que o trabalho começou. Antes o status da OS não tinha
+ * caminho nenhum a partir da tela do técnico.
+ *
+ * A conclusão saiu daqui: ela agora depende da resolução escolhida no laudo
+ * (resolvido / aguardando peça) e vive em `RecordConclusion`.
+ */
 export function RecordLifecycleButtons({
   recordId,
   startedAt,
@@ -18,37 +24,22 @@ export function RecordLifecycleButtons({
   status: "draft" | "completed";
 }) {
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
 
   if (status === "completed") {
     return <p className="text-muted-foreground text-sm">Atendimento concluído.</p>;
   }
 
-  if (!startedAt) {
-    return (
-      <Button
-        disabled={isPending}
-        onClick={() => startTransition(() => startMaintenanceRecordOffline(recordId))}
-      >
-        {isPending ? "Iniciando…" : "Iniciar atendimento"}
-      </Button>
-    );
+  if (startedAt) {
+    return <p className="text-muted-foreground text-sm">Atividade em andamento.</p>;
   }
 
   return (
     <Button
       disabled={isPending}
-      onClick={() =>
-        startTransition(async () => {
-          await completeMaintenanceRecordOffline(recordId);
-          // Não navega pro detalhe da OS (tela de despachante, só online) —
-          // volta pra "Minhas atividades", offline-capable, que já reflete
-          // o registro sumindo da lista (filtro status=draft).
-          router.push("/minhas-atividades");
-        })
-      }
+      onClick={() => startTransition(() => startMaintenanceRecordOffline(recordId))}
     >
-      {isPending ? "Concluindo…" : "Concluir atendimento"}
+      <Play className="size-4" />
+      {isPending ? "Iniciando…" : "Iniciar atividade"}
     </Button>
   );
 }

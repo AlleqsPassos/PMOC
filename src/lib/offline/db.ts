@@ -13,9 +13,11 @@ import Dexie, { type EntityTable } from "dexie";
  * o id nasce definitivo, cliente e servidor compartilham a mesma chave, o
  * que torna o upsert de sincronização idempotente por construção.
  *
- * Tabelas de referência (workOrders, equipment, checklistTemplates*,
- * measurementTypes) são só-leitura do ponto de vista da UI — populadas
- * inteiramente por `pull-sync.ts`, nunca editadas localmente.
+ * Tabelas de referência (workOrders, units, sectors, partsCatalog,
+ * checklistTemplates*, measurementTypes) são só-leitura do ponto de vista da
+ * UI — populadas inteiramente por `pull-sync.ts`, nunca editadas localmente.
+ * `equipment` e `environments` são as exceções: viraram graváveis na Fase 9
+ * (cadastro em campo) e editáveis na Fase 10.
  */
 
 export type OfflineWorkOrder = {
@@ -43,6 +45,8 @@ export type OfflineMaintenanceRecord = {
   technicianUserId: string | null;
   technicianName: string | null;
   status: "draft" | "completed";
+  /** Fase 10 — como o técnico fechou: resolvido ou aguardando peça. Null enquanto rascunho. */
+  resolution: "resolvido" | "aguardando_peca" | null;
   causeIdentified: string | null;
   servicePerformed: string | null;
   recommendation: string | null;
@@ -125,10 +129,13 @@ export type OfflineTicket = {
 };
 
 /**
- * Equipamentos das **unidades atribuídas** ao técnico (não da empresa toda —
- * escopo apertado na Fase 9). Deixou de ser só-leitura nessa fase: o técnico
- * cadastra em campo o aparelho que encontrou e não estava registrado, então a
- * tabela recebe linhas locais que sobem pelo outbox.
+ * Equipamentos da **empresa inteira**, não só das unidades atribuídas.
+ *
+ * A Fase 9 tinha apertado isso para as unidades com trabalho atribuído; a Fase
+ * 10 reverte porque o técnico ganhou menu próprio de Equipamentos — o caso de
+ * uso que o usuário descreveu é justamente ele passar um dia atualizando
+ * cadastro, sem OS atribuída, e para isso precisa da planta toda no aparelho.
+ * Gravável desde a Fase 9 (cadastro em campo) e editável desde a 10.
  */
 export type OfflineEquipment = {
   id: string;
@@ -145,10 +152,10 @@ export type OfflineEquipment = {
 };
 
 /**
- * Ambientes das unidades atribuídas. Entrou na Fase 9 porque
- * `equipment.environment_id` é NOT NULL: sem ambiente em cache (e sem poder
- * criar um), cadastrar equipamento em campo travaria em qualquer sala nova.
- * Também gravável offline, pelo mesmo motivo.
+ * Ambientes (salas). Entrou na Fase 9 porque `equipment.environment_id` é NOT
+ * NULL: sem ambiente em cache (e sem poder criar um), cadastrar equipamento em
+ * campo travaria em qualquer sala nova. Também gravável offline, pelo mesmo
+ * motivo. Escopo acompanha `equipment` — empresa inteira desde a Fase 10.
  */
 export type OfflineEnvironment = {
   id: string;
@@ -157,10 +164,38 @@ export type OfflineEnvironment = {
   name: string;
 };
 
+/**
+ * Unidades e setores entram na Fase 10 como referência só-leitura: a lista de
+ * corretivas mostra **setor · ambiente · tag**, a preventiva agrupa por setor,
+ * e o menu de equipamentos do técnico agrupa por unidade — nenhum dos três
+ * consegue se resolver só com o nome desnormalizado que `equipment` carrega.
+ */
+export type OfflineUnit = {
+  id: string;
+  clientId: string;
+  clientName: string;
+  name: string;
+};
+
+export type OfflineSector = {
+  id: string;
+  unitId: string;
+  name: string;
+};
+
+/** Peça pré-cadastrada, para o técnico selecionar em vez de digitar. */
+export type OfflinePartCatalogItem = {
+  id: string;
+  name: string;
+  unit: string | null;
+};
+
 export type OfflineChecklistTemplate = {
   id: string;
   name: string;
   maintenanceType: "preventiva" | "corretiva" | "ambos";
+  /** Texto livre no schema — casado com `equipment.type` normalizado (Fase 10). */
+  equipmentType: string | null;
 };
 
 export type OfflineChecklistTemplateItem = {
@@ -179,6 +214,7 @@ export type OfflineMeasurementType = {
 };
 
 export type OutboxTable =
+  | "work_orders"
   | "maintenance_records"
   | "maintenance_record_checklist_items"
   | "measurements"
@@ -197,7 +233,12 @@ export type OutboxItem = {
   id: string;
   entityTable: OutboxTable;
   entityId: string;
-  operation: "insert" | "update";
+  /**
+   * `delete` entrou na Fase 10, pela troca de foto: as categorias obrigatórias
+   * passaram a ter limite 1, então substituir uma foto ruim exige remover a
+   * anterior (linha + objeto no Storage).
+   */
+  operation: "insert" | "update" | "delete";
   payload: Record<string, unknown>;
   /** Se presente, o drain só aplica update se o `updated_at` do servidor ainda bater com este valor (guarda otimista — só usado por maintenance_records). */
   guardUpdatedAt?: string;
@@ -221,6 +262,9 @@ class PmocOfflineDB extends Dexie {
   tickets!: EntityTable<OfflineTicket, "id">;
   equipment!: EntityTable<OfflineEquipment, "id">;
   environments!: EntityTable<OfflineEnvironment, "id">;
+  units!: EntityTable<OfflineUnit, "id">;
+  sectors!: EntityTable<OfflineSector, "id">;
+  partsCatalog!: EntityTable<OfflinePartCatalogItem, "id">;
   checklistTemplates!: EntityTable<OfflineChecklistTemplate, "id">;
   checklistTemplateItems!: EntityTable<OfflineChecklistTemplateItem, "id">;
   measurementTypes!: EntityTable<OfflineMeasurementType, "id">;
@@ -259,6 +303,21 @@ class PmocOfflineDB extends Dexie {
       workOrders: "id, assignedUserId, status, unitId",
       equipment: "id, unitId, clientId, environmentId, tag",
       environments: "id, unitId, sectorId",
+    });
+
+    // Fase 10 — três tabelas de referência novas (units/sectors/partsCatalog) e
+    // um índice composto em `measurements`.
+    //
+    // O composto existe porque a grade da preventiva precisa achar "a medição
+    // de temperatura de retorno *deste* equipamento" para atualizar em vez de
+    // duplicar. Sem índice declarado, Dexie não consulta por dois campos — e
+    // varrer todas as medições do registro para filtrar em memória funcionaria,
+    // mas o `where` composto é a forma que o Dexie pede.
+    this.version(3).stores({
+      measurements: "id, maintenanceRecordId, [maintenanceRecordId+measurementTypeId]",
+      units: "id, clientId",
+      sectors: "id, unitId",
+      partsCatalog: "id, name",
     });
   }
 }

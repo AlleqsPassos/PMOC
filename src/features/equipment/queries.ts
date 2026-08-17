@@ -170,6 +170,41 @@ export async function listEquipmentOptions(): Promise<EquipmentOption[]> {
   return (data ?? []).map((e) => ({ id: e.id, tag: e.tag, unitId: e.unit_id }));
 }
 
+/**
+ * Os tipos de equipamento que existem de fato no cadastro da empresa.
+ *
+ * `equipment.type` e `checklist_templates.equipment_type` são texto livre no
+ * schema, e é esse par que decide qual checklist a preventiva aplica a qual
+ * aparelho (Fase 10). Um "Split" de um lado e "split " do outro deixariam o
+ * equipamento sem checklist sem nenhum aviso — oferecer os valores reais no
+ * formulário do template é o que evita isso, sem transformar o campo num
+ * catálogo rígido.
+ */
+export async function listEquipmentTypes(): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("equipment")
+    .select("type")
+    .is("deleted_at", null)
+    .not("type", "is", null);
+
+  if (error) {
+    console.error("[listEquipmentTypes]", error.message);
+    return [];
+  }
+
+  const unique = new Map<string, string>();
+  for (const row of data ?? []) {
+    const value = row.type?.trim();
+    if (!value) continue;
+    // Chave normalizada, valor como foi digitado — se a empresa tem "Split" e
+    // "split", a lista mostra um só.
+    if (!unique.has(value.toLowerCase())) unique.set(value.toLowerCase(), value);
+  }
+
+  return Array.from(unique.values()).sort((a, b) => a.localeCompare(b));
+}
+
 /** Contagem total (não-deletados) — usada no card do dashboard. */
 export async function countEquipment(): Promise<number> {
   const supabase = await createClient();

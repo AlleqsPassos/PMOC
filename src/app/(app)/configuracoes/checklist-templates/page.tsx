@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { listChecklistTemplates } from "@/features/checklist-templates/queries";
+import { listEquipmentTypes } from "@/features/equipment/queries";
 import { ChecklistTemplateFormDialog } from "@/features/checklist-templates/components/checklist-template-form-dialog";
 import { MAINTENANCE_TYPE_LABELS } from "@/features/checklist-templates/schema";
 import { AccessDenied } from "@/components/shared/access-denied";
@@ -26,7 +27,10 @@ export default async function ChecklistTemplatesPage() {
     return <AccessDenied message="Você não tem permissão para gerenciar templates de checklist." />;
   }
 
-  const templates = await listChecklistTemplates();
+  const [templates, equipmentTypes] = await Promise.all([
+    listChecklistTemplates(),
+    listEquipmentTypes(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -37,7 +41,7 @@ export default async function ChecklistTemplatesPage() {
             Usados na execução de ordens de serviço — corretivas, preventivas ou ambas.
           </p>
         </div>
-        <ChecklistTemplateFormDialog mode="create" />
+        <ChecklistTemplateFormDialog mode="create" equipmentTypes={equipmentTypes} />
       </div>
 
       <Card>

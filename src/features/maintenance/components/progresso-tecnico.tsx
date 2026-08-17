@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
+import {
+  isWorkOrderOpen,
+  readyToClose,
+  waitingForParts,
+} from "@/features/maintenance/offline-queries";
+import { CompleteWorkOrderButton } from "@/features/maintenance/components/complete-work-order-button";
 import { WORK_ORDER_TYPE_LABELS, type WorkOrderType } from "@/features/work-orders/schema";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,26 +29,28 @@ export function ProgressoTecnico() {
       offlineDb.maintenanceRecords.toArray(),
     ]);
 
-    const recordsByWorkOrder = new Map<string, { done: number; total: number }>();
+    const byWorkOrder = new Map<string, typeof records>();
     for (const r of records) {
-      const acc = recordsByWorkOrder.get(r.workOrderId) ?? { done: 0, total: 0 };
-      acc.total += 1;
-      if (r.status === "completed") acc.done += 1;
-      recordsByWorkOrder.set(r.workOrderId, acc);
+      byWorkOrder.set(r.workOrderId, [...(byWorkOrder.get(r.workOrderId) ?? []), r]);
     }
 
     const open = workOrders
-      .filter((w) => w.status !== "concluida" && w.status !== "cancelada")
+      .filter(isWorkOrderOpen)
       .map((w) => {
-        const acc = recordsByWorkOrder.get(w.id) ?? { done: 0, total: 0 };
+        const list = byWorkOrder.get(w.id) ?? [];
         return {
           id: w.id,
           title: w.title,
           type: w.type,
           unitId: w.unitId,
           unitName: w.unitName,
-          done: acc.done,
-          total: acc.total,
+          done: list.filter((r) => r.status === "completed").length,
+          total: list.length,
+          // O fechamento da OS é um botão do técnico (Fase 10), então o
+          // Dashboard também precisa avisar quando não falta mais nada — senão
+          // volta o defeito da Fase 9, com a OS esquecida aberta.
+          closable: readyToClose(list),
+          waitingParts: waitingForParts(list),
         };
       })
       // Mais adiantadas por último: o que ainda não começou é o que importa.
@@ -108,8 +116,19 @@ export function ProgressoTecnico() {
               · {wo.done} de {wo.total} concluídos
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-3">
             <ProgressBar done={wo.done} total={wo.total} />
+            {wo.closable && (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm">Tudo atendido — pode fechar.</span>
+                <CompleteWorkOrderButton workOrderId={wo.id} title={wo.title} />
+              </div>
+            )}
+            {wo.waitingParts && (
+              <p className="text-muted-foreground text-sm">
+                Tem equipamento aguardando peça — não feche ainda.
+              </p>
+            )}
           </CardContent>
         </Card>
       ))}

@@ -33,9 +33,16 @@ import {
 import type { ChecklistTemplateDetail } from "@/features/checklist-templates/queries";
 import { useCloseOnSuccess } from "@/lib/hooks/use-close-on-success";
 
-type ChecklistTemplateFormDialogProps =
+type ChecklistTemplateFormDialogProps = (
   | { mode: "create" }
-  | { mode: "edit"; template: ChecklistTemplateDetail };
+  | { mode: "edit"; template: ChecklistTemplateDetail }
+) & {
+  /** Tipos que existem no cadastro de equipamentos — ver `listEquipmentTypes`. */
+  equipmentTypes: string[];
+};
+
+const NOVO_TIPO = "__novo__";
+const SEM_TIPO = "__nenhum__";
 
 export function ChecklistTemplateFormDialog(props: ChecklistTemplateFormDialogProps) {
   const [open, setOpen] = useState(false);
@@ -52,6 +59,14 @@ export function ChecklistTemplateFormDialog(props: ChecklistTemplateFormDialogPr
   useCloseOnSuccess(state, () => setOpen(false));
 
   const defaults = props.mode === "edit" ? props.template : null;
+  const [equipmentType, setEquipmentType] = useState(defaults?.equipmentType ?? "");
+  const [typeMode, setTypeMode] = useState<"lista" | "novo">(
+    // Template já salvo com um tipo que não existe mais no cadastro cai no campo
+    // livre, para o valor não sumir silenciosamente ao editar outra coisa.
+    defaults?.equipmentType && !props.equipmentTypes.includes(defaults.equipmentType)
+      ? "novo"
+      : "lista",
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -107,13 +122,55 @@ export function ChecklistTemplateFormDialog(props: ChecklistTemplateFormDialogPr
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="equipmentType">Tipo de equipamento (opcional)</Label>
-            <Input
-              id="equipmentType"
-              name="equipmentType"
-              placeholder="ex: Split, Chiller…"
-              defaultValue={defaults?.equipmentType ?? ""}
-            />
+            <Label htmlFor="equipmentType">Tipo de equipamento</Label>
+            <Select
+              value={
+                typeMode === "novo"
+                  ? NOVO_TIPO
+                  : equipmentType === ""
+                    ? SEM_TIPO
+                    : equipmentType
+              }
+              onValueChange={(next) => {
+                if (next === NOVO_TIPO) {
+                  setTypeMode("novo");
+                  setEquipmentType("");
+                  return;
+                }
+                setTypeMode("lista");
+                setEquipmentType(next === SEM_TIPO ? "" : next);
+              }}
+            >
+              <SelectTrigger className="w-full" id="equipmentType">
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_TIPO}>Qualquer equipamento</SelectItem>
+                {props.equipmentTypes.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+                <SelectItem value={NOVO_TIPO}>Outro tipo…</SelectItem>
+              </SelectContent>
+            </Select>
+            {typeMode === "novo" && (
+              <Input
+                autoFocus
+                placeholder="ex: Chiller"
+                value={equipmentType}
+                onChange={(e) => setEquipmentType(e.target.value)}
+                aria-label="Novo tipo de equipamento"
+              />
+            )}
+            {/* O select acima é só a interface; o que a Server Action lê é este
+                campo, que carrega o texto final (escolhido ou digitado). */}
+            <input type="hidden" name="equipmentType" value={equipmentType} />
+            <p className="text-muted-foreground text-xs">
+              Define a qual categoria de equipamento este checklist se aplica na
+              preventiva. O texto precisa bater com o tipo cadastrado no
+              equipamento.
+            </p>
           </div>
 
           {state?.error && (

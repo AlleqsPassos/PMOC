@@ -926,6 +926,8 @@ export type Database = {
           recommendation: string | null;
           diagnosis: string | null;
           notes: string | null;
+          /** Fase 10 — como o técnico fechou o atendimento. Null em rascunho e em registro pré-Fase 10. */
+          resolution: "resolvido" | "aguardando_peca" | null;
           started_at: string | null;
           completed_at: string | null;
           created_at: string;
@@ -943,6 +945,7 @@ export type Database = {
           recommendation?: string | null;
           diagnosis?: string | null;
           notes?: string | null;
+          resolution?: "resolvido" | "aguardando_peca" | null;
           started_at?: string | null;
           completed_at?: string | null;
           created_at?: string;
@@ -1193,7 +1196,17 @@ export type Database = {
           work_order_id: string;
           maintenance_record_id: string | null;
           equipment_id: string;
-          category: "equipamento" | "etiqueta" | "problema" | "antes" | "depois" | "outro";
+          category:
+            | "equipamento"
+            | "etiqueta"
+            | "problema"
+            | "problema_resolvido"
+            | "temperatura_insuflamento"
+            | "temperatura_retorno"
+            // legado da Fase 4: fora da UI do técnico, ainda válido no banco
+            | "antes"
+            | "depois"
+            | "outro";
           storage_path: string;
           file_name: string;
           mime_type: string;
@@ -1207,7 +1220,17 @@ export type Database = {
           work_order_id: string;
           maintenance_record_id?: string | null;
           equipment_id: string;
-          category: "equipamento" | "etiqueta" | "problema" | "antes" | "depois" | "outro";
+          category:
+            | "equipamento"
+            | "etiqueta"
+            | "problema"
+            | "problema_resolvido"
+            | "temperatura_insuflamento"
+            | "temperatura_retorno"
+            // legado da Fase 4: fora da UI do técnico, ainda válido no banco
+            | "antes"
+            | "depois"
+            | "outro";
           storage_path: string;
           file_name: string;
           mime_type: string;
@@ -1243,6 +1266,37 @@ export type Database = {
             columns: ["equipment_id"];
             isOneToOne: false;
             referencedRelation: "equipment";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      parts_catalog: {
+        Row: {
+          id: string;
+          /** null = linha global do seed (mesmo padrão de measurement_types). */
+          company_id: string | null;
+          name: string;
+          unit: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id?: string | null;
+          name: string;
+          unit?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["parts_catalog"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "parts_catalog_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
             referencedColumns: ["id"];
           },
         ];

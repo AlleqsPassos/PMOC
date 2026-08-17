@@ -1,26 +1,29 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
-import { ChecklistSection } from "@/features/maintenance/components/checklist-section";
-import { MeasurementSection } from "@/features/maintenance/components/measurement-section";
-import { NarrativeForm } from "@/features/maintenance/components/narrative-form";
-import { RecordLifecycleButtons } from "@/features/maintenance/components/record-lifecycle-buttons";
-import { AttachmentUploaderGroup } from "@/features/attachments/components/attachment-uploader";
-import { ATTACHMENT_CATEGORY } from "@/features/attachments/schema";
-import { PartsRequestForm } from "@/features/parts-requests/components/parts-request-form";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AtendimentoCorretiva } from "@/features/maintenance/components/atendimento-corretiva";
+import { Card, CardContent } from "@/components/ui/card";
 
 /**
- * Fluxo de atendimento — Fase 6, inteiramente local-first. Tudo que a
- * página antes buscava via Server Component (getMaintenanceRecordDetail
- * etc., Fase 4.2) agora vem de uma única `useLiveQuery` no Dexie: os dados
- * já chegaram por `pullTechnicianData()` (disparado pelo SyncStatusBadge no
- * layout) antes do técnico navegar até aqui. Nenhuma seção depende de rede
- * — cada uma grava local e enfileira no outbox (ver offline-actions.ts de
- * cada feature: maintenance, attachments, parts-requests).
+ * Ponto de entrada do atendimento de um equipamento — ramifica por tipo de OS
+ * (Fase 10). Antes era uma tela só, com checklist, medições, fotos, peças e
+ * laudo para qualquer manutenção; o trabalho real tem duas formas diferentes.
+ *
+ * **Corretiva** fica aqui: a rota é "um registro", e a corretiva é exatamente
+ * um problema num aparelho.
+ *
+ * **Preventiva** não cabe nesta rota — o técnico preenche o ambiente inteiro de
+ * uma vez, vários registros na mesma tela. Então esta rota redireciona para lá.
+ * Redirecionar, em vez de simplesmente quebrar o link, porque a rota antiga
+ * está espalhada por telas anteriores e por qualquer atalho que o técnico tenha
+ * salvo.
+ *
+ * O redirecionamento é feito no cliente, a partir do Dexie, e não no servidor:
+ * descobrir o tipo da OS no servidor custaria uma consulta com rede, e esta é a
+ * tela que precisa abrir em campo sem conexão.
  */
 export function AtendimentoWizard({
   workOrderId,
@@ -29,39 +32,34 @@ export function AtendimentoWizard({
   workOrderId: string;
   maintenanceRecordId: string;
 }) {
-  const data = useLiveQuery(async () => {
-    const [record, workOrder, checklistItems, measurements, partsRequests, attachments, templates, measurementTypes] =
-      await Promise.all([
-        offlineDb.maintenanceRecords.get(maintenanceRecordId),
-        offlineDb.workOrders.get(workOrderId),
-        offlineDb.checklistItems.where("maintenanceRecordId").equals(maintenanceRecordId).toArray(),
-        offlineDb.measurements.where("maintenanceRecordId").equals(maintenanceRecordId).toArray(),
-        offlineDb.partsRequests.where("maintenanceRecordId").equals(maintenanceRecordId).toArray(),
-        offlineDb.attachments.where("maintenanceRecordId").equals(maintenanceRecordId).toArray(),
-        offlineDb.checklistTemplates.toArray(),
-        offlineDb.measurementTypes.toArray(),
-      ]);
-    const meta = await offlineDb.meta.get("companyId");
+  const router = useRouter();
+
+  const target = useLiveQuery(async () => {
+    const workOrder = await offlineDb.workOrders.get(workOrderId);
+    if (!workOrder) return { kind: "missing" as const };
+    if (workOrder.type === "corretiva") return { kind: "corretiva" as const };
+
+    const record = await offlineDb.maintenanceRecords.get(maintenanceRecordId);
+    const equipment = record ? await offlineDb.equipment.get(record.equipmentId) : undefined;
+
     return {
-      record,
-      workOrder,
-      checklistItems,
-      measurements,
-      partsRequests,
-      attachments,
-      templates,
-      measurementTypes,
-      companyId: meta?.value ?? "",
+      kind: "preventiva" as const,
+      href: equipment
+        ? `/minhas-atividades/${workOrder.unitId}/preventivas/${equipment.environmentId}`
+        : `/minhas-atividades/${workOrder.unitId}/preventivas`,
     };
   }, [workOrderId, maintenanceRecordId]);
 
-  if (!data) {
+  const redirectTo = target?.kind === "preventiva" ? target.href : null;
+  useEffect(() => {
+    if (redirectTo) router.replace(redirectTo);
+  }, [redirectTo, router]);
+
+  if (!target) {
     return <p className="text-muted-foreground text-sm">Carregando…</p>;
   }
 
-  const { record, workOrder } = data;
-
-  if (!record || !workOrder) {
+  if (target.kind === "missing") {
     return (
       <Card>
         <CardContent className="text-muted-foreground py-8 text-center text-sm">
@@ -72,103 +70,14 @@ export function AtendimentoWizard({
     );
   }
 
-  const applicableTemplates = data.templates.filter(
-    (t) => t.maintenanceType === workOrder.type || t.maintenanceType === "ambos",
-  );
+  if (target.kind === "preventiva") {
+    return <p className="text-muted-foreground text-sm">Abrindo a preventiva…</p>;
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-muted-foreground text-sm">
-          <Link href="/minhas-atividades" className="hover:underline">
-            {workOrder.title}
-          </Link>{" "}
-          / Atender {record.equipmentTag}
-        </p>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{record.equipmentTag}</h1>
-            <Badge variant={record.status === "completed" ? "default" : "outline"}>
-              {record.status === "completed" ? "Concluído" : "Rascunho"}
-            </Badge>
-          </div>
-          <RecordLifecycleButtons recordId={record.id} startedAt={record.startedAt} status={record.status} />
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Checklist</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChecklistSection
-            recordId={record.id}
-            items={data.checklistItems}
-            templates={applicableTemplates}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Medições</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MeasurementSection
-            recordId={record.id}
-            measurements={data.measurements}
-            types={data.measurementTypes}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Fotos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AttachmentUploaderGroup
-            companyId={data.companyId}
-            workOrderId={workOrderId}
-            maintenanceRecordId={record.id}
-            equipmentId={record.equipmentId}
-            categories={[...ATTACHMENT_CATEGORY]}
-            attachments={data.attachments}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Peças</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {data.partsRequests.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Nenhuma peça solicitada ainda.</p>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {data.partsRequests.map((p) => (
-                <div key={p.id} className="flex items-center justify-between text-sm">
-                  <span>
-                    {p.partName} × {p.quantity}
-                  </span>
-                  <Badge variant="outline">{p.status}</Badge>
-                </div>
-              ))}
-            </div>
-          )}
-          <PartsRequestForm workOrderId={workOrderId} maintenanceRecordId={record.id} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Laudo</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <NarrativeForm record={record} />
-        </CardContent>
-      </Card>
-    </div>
+    <AtendimentoCorretiva
+      workOrderId={workOrderId}
+      maintenanceRecordId={maintenanceRecordId}
+    />
   );
 }

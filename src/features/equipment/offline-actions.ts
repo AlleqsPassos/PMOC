@@ -55,6 +55,60 @@ export async function createEnvironmentOffline(params: {
 }
 
 /**
+ * Corrige o cadastro de um equipamento (Fase 10).
+ *
+ * Só existe porque o RESPONSAVEL_TECNICO ganhou `edit_equipment` na 0043 — a
+ * Fase 9 dava a ele só INSERT. É `update()` puro no drain, nunca upsert: um
+ * payload parcial num upsert vira INSERT hipotético e a validação NOT NULL/RLS
+ * roda antes de o Postgres checar o conflito (bug real da Fase 6).
+ *
+ * Unidade e ambiente ficam de fora: mudar um aparelho de sala é remanejamento de
+ * planta, não correção de cadastro, e envolve consistência com OS já geradas.
+ */
+export async function updateEquipmentOffline(params: {
+  id: string;
+  tag: string;
+  type: string | null;
+  brand: string | null;
+  model: string | null;
+}): Promise<{ error?: string }> {
+  const { companyId } = await localContext();
+  if (!companyId) {
+    return { error: "Dados locais incompletos. Conecte-se uma vez e tente de novo." };
+  }
+
+  const tag = params.tag.trim();
+  if (!tag) return { error: "Informe a tag do equipamento." };
+
+  const clash = await offlineDb.equipment.where("tag").equals(tag).first();
+  if (clash && clash.id !== params.id) {
+    return { error: `A tag "${tag}" já está em uso por outro equipamento.` };
+  }
+
+  await offlineDb.equipment.update(params.id, {
+    tag,
+    type: params.type,
+    brand: params.brand,
+    model: params.model,
+  });
+  await enqueue({
+    entityTable: "equipment",
+    entityId: params.id,
+    operation: "update",
+    payload: {
+      id: params.id,
+      company_id: companyId,
+      tag,
+      type: params.type,
+      brand: params.brand,
+      model: params.model,
+    },
+  });
+  requestSync();
+  return {};
+}
+
+/**
  * Descarta um cadastro de equipamento que o servidor recusou — na prática,
  * tag duplicada, que só é detectável no drain (o aparelho não tem o catálogo
  * completo da empresa).
@@ -85,9 +139,11 @@ export async function discardFailedEquipmentOffline(
 /**
  * Cadastra em campo um equipamento que não estava registrado (Fase 9).
  *
- * A tag é única por empresa e **não dá para validar isso offline** — o
- * aparelho do técnico só tem o catálogo das unidades atribuídas a ele. Uma
- * colisão só falha no drain, com a mensagem tratada em `sync-engine.ts`.
+ * A tag é única por empresa. Desde a Fase 10 o aparelho baixa o catálogo da
+ * empresa inteira, então a checagem local abaixo pega praticamente toda colisão
+ * — mas não substitui a do banco: outro técnico pode ter cadastrado a mesma tag
+ * desde o último pull. Nesse caso a falha aparece no drain, com a mensagem
+ * tratada em `sync-engine.ts`.
  *
  * Se o ambiente também acabou de ser criado offline, a ordem do outbox
  * resolve a FK sozinha: a fila drena por `createdAt`, então o insert do
@@ -113,7 +169,7 @@ export async function createEquipmentOffline(params: {
   // ida ao servidor destinada a falhar. Não substitui a checagem do banco.
   const existing = await offlineDb.equipment.where("tag").equals(tag).first();
   if (existing) {
-    return { error: `A tag "${tag}" já está em uso nesta unidade.` };
+    return { error: `A tag "${tag}" já está em uso na empresa.` };
   }
 
   // Nome de unidade/cliente para exibição: copiados de um equipamento ou da

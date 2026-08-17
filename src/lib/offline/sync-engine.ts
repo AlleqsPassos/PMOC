@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { offlineDb, type OutboxItem } from "@/lib/offline/db";
 import { listPendingOutbox, markSyncing, markSynced, markError } from "@/lib/offline/outbox";
@@ -18,6 +19,14 @@ import {
  * sem UI de merge).
  */
 
+/**
+ * Conflito de verdade: o registro mudou no servidor depois do que este
+ * dispositivo conhecia. Tipo próprio porque o tratamento é diferente de uma
+ * falha comum — **não adianta tentar de novo**. A verdade do servidor já foi
+ * repuxada; insistir com a mesma guarda daria o mesmo resultado para sempre.
+ */
+class SyncConflictError extends Error {}
+
 async function applyOutboxItem(item: OutboxItem): Promise<void> {
   const supabase = createClient();
 
@@ -29,11 +38,27 @@ async function applyOutboxItem(item: OutboxItem): Promise<void> {
       .maybeSingle();
     if (current && current.updated_at !== item.guardUpdatedAt) {
       await pullTechnicianData();
-      throw new Error("CONFLICT: registro foi atualizado por outro dispositivo — dados recarregados.");
+      throw new SyncConflictError(
+        "Este atendimento foi alterado em outro dispositivo. Os dados foram recarregados — confira e refaça se precisar.",
+      );
     }
   }
 
-  if (item.entityTable === "attachments") {
+  // Troca de foto (Fase 10): o objeto no Storage sai antes da linha, senão uma
+  // falha no meio deixaria o binário órfão pagando espaço sem nenhum metadado
+  // apontando para ele. Na outra ordem, o pior caso é uma linha sem arquivo —
+  // detectável e recuperável; aqui o pior caso é invisível.
+  if (item.entityTable === "attachments" && item.operation === "delete") {
+    const path = String(item.payload.storage_path ?? "");
+    if (path) {
+      const { error: removeError } = await supabase.storage
+        .from("attachments")
+        .remove([path]);
+      if (removeError) throw removeError;
+    }
+  }
+
+  if (item.entityTable === "attachments" && item.operation === "insert") {
     const blobRow = await offlineDb.attachmentBlobs.get(item.entityId);
     if (blobRow) {
       const path = String(item.payload.storage_path ?? "");
@@ -66,8 +91,33 @@ async function applyOutboxItem(item: OutboxItem): Promise<void> {
   const { error } =
     item.operation === "insert"
       ? await query.upsert(item.payload as never, { onConflict: "id" })
-      : await query.update(item.payload as never).eq("id", item.entityId);
+      : item.operation === "delete"
+        ? await query.delete().eq("id", item.entityId)
+        : await query.update(item.payload as never).eq("id", item.entityId);
   if (error) throw error;
+
+  // Reancora a guarda otimista depois de gravar.
+  //
+  // Sem isto, a guarda acusa conflito contra a **própria edição anterior deste
+  // aparelho**: o trigger `set_updated_at` mexe em `updated_at` a cada update,
+  // mas a cópia local só é atualizada num pull completo — e o poll de 30s só
+  // drena, não puxa. Resultado: "iniciar" (que drena e muda o `updated_at` no
+  // servidor) deixava a cópia local defasada, e a conclusão seguinte batia num
+  // conflito falso, para sempre, porque a guarda enfileirada nunca mudava.
+  // Bug real: apareceu no QA da Fase 10, quando concluir com resolução virou o
+  // caminho normal, mas a armadilha existia desde a Fase 6.
+  if (item.entityTable === "maintenance_records" && item.operation !== "delete") {
+    const { data: fresh } = await supabase
+      .from("maintenance_records")
+      .select("updated_at")
+      .eq("id", item.entityId)
+      .maybeSingle();
+    if (fresh?.updated_at) {
+      await offlineDb.maintenanceRecords.update(item.entityId, {
+        updatedAt: fresh.updated_at,
+      });
+    }
+  }
 
   const companyId = (await offlineDb.meta.get("companyId"))?.value;
   const userId = (await offlineDb.meta.get("userId"))?.value;
@@ -91,12 +141,14 @@ async function applyOutboxItem(item: OutboxItem): Promise<void> {
 function errorMessage(err: unknown): string {
   if (err && typeof err === "object" && "code" in err) {
     const code = String((err as { code: unknown }).code);
-    // 23505 = unique_violation. O caso real é a tag do equipamento, que é
-    // única por empresa: offline não há como validar isso no aparelho (o
-    // técnico não tem o catálogo completo), então a colisão só aparece aqui.
-    // A mensagem crua do Postgres não diz o que fazer — esta diz.
+    // 23505 = unique_violation. O caso real é a tag do equipamento, única por
+    // empresa. A mensagem crua do Postgres não diz o que fazer — esta diz, e
+    // oferece as duas saídas que o técnico de fato tem: desde a Fase 10 ele
+    // ganhou `edit_equipment`, então corrigir a tag passou a ser possível
+    // (antes só dava para descartar, e a mensagem original prometia uma edição
+    // que ele não podia fazer — o defeito encontrado no QA da Fase 9).
     if (code === "23505") {
-      return "Já existe um equipamento com essa tag na empresa. Descarte este cadastro e refaça com outra tag.";
+      return "Já existe um equipamento com essa tag na empresa. Corrija a tag deste cadastro ou descarte-o.";
     }
   }
   if (err instanceof Error) return err.message;
@@ -111,6 +163,7 @@ export async function drainOutbox(): Promise<void> {
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
   isDraining = true;
+  let conflictNotice: string | null = null;
   try {
     const pending = await listPendingOutbox();
     for (const item of pending) {
@@ -120,9 +173,21 @@ export async function drainOutbox(): Promise<void> {
         await applyOutboxItem(item);
         await markSynced(item.id);
       } catch (err) {
+        // Conflito sai da fila em vez de virar erro: a verdade do servidor já
+        // foi repuxada e a guarda enfileirada não muda, então tentar de novo
+        // repetiria o mesmo resultado indefinidamente — item preso para sempre,
+        // com o selo de sincronização em erro permanente.
+        if (err instanceof SyncConflictError) {
+          await markSynced(item.id);
+          conflictNotice = err.message;
+          continue;
+        }
         await markError(item.id, item.attemptCount + 1, errorMessage(err));
       }
     }
+    // Fora do laço: o técnico não precisa ver um toast por item, precisa saber
+    // que algo dele foi descartado.
+    if (conflictNotice) toast.warning(conflictNotice);
   } finally {
     isDraining = false;
   }

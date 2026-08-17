@@ -44,6 +44,7 @@ next-env.d.ts
 # gerado sob demanda para colar no SQL Editor do Supabase — fonte da
 # verdade fica em supabase/migrations/*.sql
 supabase/migrations_combined.sql
+supabase/migrations_fase*.sql
 
 # service worker gerado pelo build (@serwist/next) — fonte é src/app/sw.ts
 /public/sw.js

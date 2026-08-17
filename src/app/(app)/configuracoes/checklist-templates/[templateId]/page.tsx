@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { getChecklistTemplateDetail } from "@/features/checklist-templates/queries";
+import { listEquipmentTypes } from "@/features/equipment/queries";
 import { ChecklistTemplateFormDialog } from "@/features/checklist-templates/components/checklist-template-form-dialog";
 import { ChecklistTemplateItemForm } from "@/features/checklist-templates/components/checklist-template-item-form";
 import { ChecklistTemplateItemRemoveButton } from "@/features/checklist-templates/components/checklist-template-item-remove-button";
@@ -25,7 +26,10 @@ export default async function ChecklistTemplateDetalhePage(
     return <AccessDenied message="Você não tem permissão para gerenciar templates de checklist." />;
   }
 
-  const template = await getChecklistTemplateDetail(templateId);
+  const [template, equipmentTypes] = await Promise.all([
+    getChecklistTemplateDetail(templateId),
+    listEquipmentTypes(),
+  ]);
   if (!template) notFound();
 
   return (
@@ -43,7 +47,11 @@ export default async function ChecklistTemplateDetalhePage(
             <Badge variant="outline">{MAINTENANCE_TYPE_LABELS[template.maintenanceType]}</Badge>
             {template.equipmentType && <Badge variant="secondary">{template.equipmentType}</Badge>}
           </div>
-          <ChecklistTemplateFormDialog mode="edit" template={template} />
+          <ChecklistTemplateFormDialog
+            mode="edit"
+            template={template}
+            equipmentTypes={equipmentTypes}
+          />
         </div>
       </div>
 

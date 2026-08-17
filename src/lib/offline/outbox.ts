@@ -13,7 +13,7 @@ import { offlineDb, type OutboxItem, type OutboxTable } from "@/lib/offline/db";
 export async function enqueue(params: {
   entityTable: OutboxTable;
   entityId: string;
-  operation: "insert" | "update";
+  operation: OutboxItem["operation"];
   payload: Record<string, unknown>;
   guardUpdatedAt?: string;
 }): Promise<void> {

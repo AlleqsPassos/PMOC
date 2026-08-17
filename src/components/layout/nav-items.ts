@@ -10,6 +10,7 @@ import {
   FileCheck2,
   ListChecks,
   ListTodo,
+  Package,
   Users,
   ShieldCheck,
   History,
@@ -61,11 +62,14 @@ export const primaryNavItems: NavItem[] = [
     requiredPermission: "view_units",
   },
   {
+    // Voltou para o menu do técnico na Fase 10 (era `dispatcherOnly` na 9): o
+    // usuário descreveu o dia de atualização de cadastro, em que ele não tem OS
+    // atribuída e precisa alcançar a planta inteira. A rota serve as duas
+    // visões, ramificadas por público.
     href: "/equipamentos",
     label: "Equipamentos",
     icon: Wrench,
     requiredPermission: "view_equipment",
-    dispatcherOnly: true,
   },
   {
     href: "/chamados",
@@ -108,6 +112,12 @@ export const settingsNavItems: NavItem[] = [
     label: "Templates de checklist",
     icon: ListTodo,
     requiredPermission: "manage_checklist_templates",
+  },
+  {
+    href: "/configuracoes/pecas",
+    label: "Catálogo de peças",
+    icon: Package,
+    requiredPermission: "manage_parts_catalog",
   },
   {
     href: "/configuracoes/permissoes",

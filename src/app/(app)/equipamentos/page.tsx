@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getUserPermissionKeys, hasPermission } from "@/lib/auth/permissions";
+import { isDispatcherFromKeys } from "@/lib/auth/is-dispatcher";
+import { EquipamentosTecnicoView } from "@/features/equipment/components/equipamentos-tecnico-view";
 import { listEquipment } from "@/features/equipment/queries";
 import { listClientOptions } from "@/features/clients/queries";
 import { listUnitOptions, listSectorOptions, listEnvironmentOptions } from "@/features/units/queries";
@@ -27,13 +29,30 @@ function isEquipmentStatus(value: string | undefined): value is EquipmentStatus 
   return !!value && (EQUIPMENT_STATUS as readonly string[]).includes(value);
 }
 
+/**
+ * Duas visões na mesma rota, ramificadas por público — mesmo padrão de
+ * `/dashboard` e `/minhas-atividades`.
+ *
+ * O despachante fica com a tabela server-rendered de sempre. O técnico recebe a
+ * visão local-first (Fase 10): ele voltou a ter menu de Equipamentos, com a
+ * planta inteira, porque pode passar um dia só atualizando cadastro — e a tela
+ * dele precisa abrir em campo, sem rede, coisa que esta aqui não faz.
+ */
 export default async function EquipamentosPage(props: PageProps<"/equipamentos">) {
   const searchParams = await props.searchParams;
   await requireUser();
 
-  const canView = await hasPermission("view_equipment");
+  const [canView, keys] = await Promise.all([
+    hasPermission("view_equipment"),
+    getUserPermissionKeys(),
+  ]);
   if (!canView) {
     return <AccessDenied message="Você não tem permissão para ver equipamentos." />;
+  }
+
+  if (!isDispatcherFromKeys(keys)) {
+    const unidade = typeof searchParams.unidade === "string" ? searchParams.unidade : undefined;
+    return <EquipamentosTecnicoView initialUnitId={unidade} />;
   }
 
   const clientId = typeof searchParams.clientId === "string" ? searchParams.clientId : undefined;

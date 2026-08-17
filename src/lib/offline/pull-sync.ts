@@ -9,6 +9,24 @@ function firstOf<T>(value: T | T[] | null): T | null {
 }
 
 /**
+ * Torna visível uma consulta do pull que falhou.
+ *
+ * Sem isto, o pull descarta o erro em silêncio: `data` vem null, o `bulkPut([])`
+ * é inofensivo (não apaga o cache) e a tela segue mostrando o dado antigo com o
+ * selo "Sincronizado". Foi exatamente o que aconteceu ao rodar a Fase 10 com o
+ * banco ainda sem as colunas novas — o aplicativo parecia em dia e não estava.
+ * O aviso no console não conserta o descompasso, mas dá nome a ele em vez de
+ * deixar quem investiga procurando no lugar errado.
+ */
+function reportPullErrors(
+  results: { label: string; error: { message: string } | null }[],
+): void {
+  for (const { label, error } of results) {
+    if (error) console.warn(`[pullTechnicianData] ${label}: ${error.message}`);
+  }
+}
+
+/**
  * Zera o banco local quando o dispositivo troca de usuário.
  *
  * O IndexedDB é por origem, não por sessão: `logout()` derruba só o cookie
@@ -44,8 +62,9 @@ export async function resetLocalDbIfUserChanged(): Promise<void> {
  * Baixa tudo que o técnico logado precisa pra trabalhar offline: as OS
  * atribuídas a ele (+ seus maintenance_records/checklist/medições/
  * peças/anexos-metadados), os chamados dele, e o catálogo de referência da
- * empresa (equipamentos, templates de checklist, tipos de medição — dataset
- * pequeno, empresa única). `bulkPut` por tabela dentro de uma transação —
+ * empresa (unidades, setores, ambientes, equipamentos, peças, templates de
+ * checklist, tipos de medição — dataset pequeno, empresa única).
+ * `bulkPut` por tabela dentro de uma transação —
  * sobrescreve o que já existia local (servidor é sempre a fonte de verdade
  * pra dado de referência; dado ainda não sincronizado do outbox não é
  * tocado aqui, só as tabelas espelho).
@@ -73,11 +92,11 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
   if (meError || !me) return { error: "Não foi possível identificar o usuário." };
 
   const [
-    { data: workOrders },
-    { data: templates },
-    { data: templateItems },
-    { data: measurementTypes },
-    { data: tickets },
+    { data: workOrders, error: workOrdersError },
+    { data: templates, error: templatesError },
+    { data: templateItems, error: templateItemsError },
+    { data: measurementTypes, error: measurementTypesError },
+    { data: tickets, error: ticketsError },
   ] = await Promise.all([
     supabase
       .from("work_orders")
@@ -85,7 +104,9 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
         "id, title, type, status, scheduled_date, started_at, finished_at, created_at, origin_ticket_id, client_id, unit_id, assigned_user_id, client:clients(corporate_name), unit:units(name)",
       )
       .eq("assigned_user_id", me.id),
-    supabase.from("checklist_templates").select("id, name, maintenance_type"),
+    supabase
+      .from("checklist_templates")
+      .select("id, name, maintenance_type, equipment_type"),
     supabase
       .from("checklist_template_items")
       .select("id, checklist_template_id, label, order_index")
@@ -102,36 +123,34 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
       .eq("assigned_user_id", me.id),
   ]);
 
+  reportPullErrors([
+    { label: "work_orders", error: workOrdersError },
+    { label: "checklist_templates", error: templatesError },
+    { label: "checklist_template_items", error: templateItemsError },
+    { label: "measurement_types", error: measurementTypesError },
+    { label: "tickets", error: ticketsError },
+  ]);
+
   const workOrderIds = (workOrders ?? []).map((w) => w.id);
 
-  /**
-   * Unidades onde o técnico tem trabalho — a fronteira do que o aparelho dele
-   * baixa (Fase 9). Antes, `equipment` vinha da empresa inteira: dado que ele
-   * não precisa e que fica guardado no dispositivo. Também é a chave da
-   * guarda de escopo da página da unidade.
-   */
-  const unitIds = Array.from(
-    new Set([
-      ...(workOrders ?? []).map((w) => w.unit_id),
-      ...(tickets ?? []).map((t) => t.unit_id),
-    ]),
-  ).filter(Boolean);
-
   const [
-    { data: maintenanceRecords },
-    { data: partsRequests },
-    { data: attachments },
-    { data: equipment },
-    { data: environments },
+    { data: maintenanceRecords, error: recordsError },
+    { data: partsRequests, error: partsRequestsError },
+    { data: attachments, error: attachmentsError },
+    { data: equipment, error: equipmentError },
+    { data: environments, error: environmentsError },
+    { data: units, error: unitsError },
+    { data: sectors, error: sectorsError },
+    { data: partsCatalog, error: partsCatalogError },
   ] = await Promise.all([
     workOrderIds.length
       ? supabase
           .from("maintenance_records")
           .select(
-            "id, work_order_id, equipment_id, technician_user_id, status, cause_identified, service_performed, recommendation, diagnosis, notes, started_at, completed_at, updated_at, equipment:equipment(tag), technician:users(full_name)",
+            "id, work_order_id, equipment_id, technician_user_id, status, resolution, cause_identified, service_performed, recommendation, diagnosis, notes, started_at, completed_at, updated_at, equipment:equipment(tag), technician:users(full_name)",
           )
           .in("work_order_id", workOrderIds)
-      : Promise.resolve({ data: [] as never[] }),
+      : Promise.resolve({ data: [] as never[], error: null }),
     workOrderIds.length
       ? supabase
           .from("parts_requests")
@@ -139,7 +158,7 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
             "id, work_order_id, maintenance_record_id, part_name, quantity, note, status, created_at, requested_by:users!parts_requests_requested_by_user_id_fkey(full_name)",
           )
           .in("work_order_id", workOrderIds)
-      : Promise.resolve({ data: [] as never[] }),
+      : Promise.resolve({ data: [] as never[], error: null }),
     workOrderIds.length
       ? supabase
           .from("attachments")
@@ -147,23 +166,47 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
             "id, work_order_id, maintenance_record_id, equipment_id, category, file_name, mime_type, size_bytes, storage_path, created_at",
           )
           .in("work_order_id", workOrderIds)
-      : Promise.resolve({ data: [] as never[] }),
-    unitIds.length
-      ? supabase
-          .from("equipment")
-          .select(
-            "id, tag, type, brand, model, unit_id, environment_id, unit:units(client_id, name, client:clients(corporate_name))",
-          )
-          .in("unit_id", unitIds)
-          .is("deleted_at", null)
-      : Promise.resolve({ data: [] as never[] }),
-    unitIds.length
-      ? supabase
-          .from("environments")
-          .select("id, unit_id, sector_id, name")
-          .in("unit_id", unitIds)
-          .is("deleted_at", null)
-      : Promise.resolve({ data: [] as never[] }),
+      : Promise.resolve({ data: [] as never[], error: null }),
+    // Catálogo da **empresa inteira**, sem filtro de unidade.
+    //
+    // A Fase 9 tinha restringido isto às unidades com trabalho atribuído, para
+    // não guardar no aparelho dado que o técnico não precisava. A Fase 10
+    // reverte: ele ganhou menu próprio de Equipamentos justamente para poder
+    // passar um dia atualizando cadastro sem OS atribuída, e nesse caso
+    // `unitIds` estaria vazio — a tela nasceria vazia. A RLS continua sendo a
+    // fronteira real (só a empresa dele), o que muda é quanto do que ele já
+    // pode ver fica em cache.
+    supabase
+      .from("equipment")
+      .select(
+        "id, tag, type, brand, model, unit_id, environment_id, unit:units(client_id, name, client:clients(corporate_name))",
+      )
+      .is("deleted_at", null),
+    supabase
+      .from("environments")
+      .select("id, unit_id, sector_id, name")
+      .is("deleted_at", null),
+    supabase
+      .from("units")
+      .select("id, client_id, name, client:clients(corporate_name)")
+      .is("deleted_at", null),
+    supabase.from("sectors").select("id, unit_id, name").is("deleted_at", null),
+    supabase
+      .from("parts_catalog")
+      .select("id, name, unit")
+      .eq("is_active", true)
+      .order("name"),
+  ]);
+
+  reportPullErrors([
+    { label: "maintenance_records", error: recordsError },
+    { label: "parts_requests", error: partsRequestsError },
+    { label: "attachments", error: attachmentsError },
+    { label: "equipment", error: equipmentError },
+    { label: "environments", error: environmentsError },
+    { label: "units", error: unitsError },
+    { label: "sectors", error: sectorsError },
+    { label: "parts_catalog", error: partsCatalogError },
   ]);
 
   const recordIds = (maintenanceRecords ?? []).map((r) => r.id);
@@ -173,7 +216,7 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
           .from("maintenance_record_checklist_items")
           .select("id, maintenance_record_id, template_item_id, label_snapshot, status, note")
           .in("maintenance_record_id", recordIds)
-      : Promise.resolve({ data: [] as never[] }),
+      : Promise.resolve({ data: [] as never[], error: null }),
     recordIds.length
       ? supabase
           .from("measurements")
@@ -181,7 +224,7 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
             "id, maintenance_record_id, measurement_type_id, value_numeric, value_text, unit, note, created_at, measurement_type:measurement_types(label)",
           )
           .in("maintenance_record_id", recordIds)
-      : Promise.resolve({ data: [] as never[] }),
+      : Promise.resolve({ data: [] as never[], error: null }),
   ]);
 
   await offlineDb.transaction(
@@ -196,6 +239,9 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
       offlineDb.tickets,
       offlineDb.equipment,
       offlineDb.environments,
+      offlineDb.units,
+      offlineDb.sectors,
+      offlineDb.partsCatalog,
       offlineDb.checklistTemplates,
       offlineDb.checklistTemplateItems,
       offlineDb.measurementTypes,
@@ -230,6 +276,7 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
           technicianUserId: r.technician_user_id,
           technicianName: firstOf(r.technician)?.full_name ?? null,
           status: r.status,
+          resolution: r.resolution,
           causeIdentified: r.cause_identified,
           servicePerformed: r.service_performed,
           recommendation: r.recommendation,
@@ -342,11 +389,37 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
         })),
       );
 
+      await offlineDb.units.bulkPut(
+        (units ?? []).map((u) => ({
+          id: u.id,
+          clientId: u.client_id,
+          clientName: firstOf(u.client)?.corporate_name ?? "—",
+          name: u.name,
+        })),
+      );
+
+      await offlineDb.sectors.bulkPut(
+        (sectors ?? []).map((s) => ({
+          id: s.id,
+          unitId: s.unit_id,
+          name: s.name,
+        })),
+      );
+
+      await offlineDb.partsCatalog.bulkPut(
+        (partsCatalog ?? []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          unit: p.unit,
+        })),
+      );
+
       await offlineDb.checklistTemplates.bulkPut(
         (templates ?? []).map((t) => ({
           id: t.id,
           name: t.name,
           maintenanceType: t.maintenance_type,
+          equipmentType: t.equipment_type,
         })),
       );
 
