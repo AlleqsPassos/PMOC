@@ -3,7 +3,10 @@
 import { createClient } from "@/lib/supabase/client";
 import { offlineDb, type OutboxItem } from "@/lib/offline/db";
 import { listPendingOutbox, markSyncing, markSynced, markError } from "@/lib/offline/outbox";
-import { pullTechnicianData } from "@/lib/offline/pull-sync";
+import {
+  pullTechnicianData,
+  resetLocalDbIfUserChanged,
+} from "@/lib/offline/pull-sync";
 
 /**
  * Motor de sync — drena o outbox em ordem de criação, upsert idempotente
@@ -136,6 +139,10 @@ export function requestSync(): void {
  * no QA "modo avião" desta fase.
  */
 export async function drainThenPull(): Promise<void> {
+  // Antes de tudo: se o dispositivo trocou de usuário, o banco local do
+  // anterior é apagado. Precisa vir *antes* do drain — senão os itens de
+  // outbox do usuário anterior seriam enviados sob a sessão do novo.
+  await resetLocalDbIfUserChanged();
   await drainOutbox();
   await pullTechnicianData();
 }

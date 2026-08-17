@@ -26,7 +26,7 @@ export async function login(
     return { error: "E-mail ou senha incorretos." };
   }
 
-  redirect("/dashboard");
+  redirect("/minhas-atividades");
 }
 
 export async function logout(): Promise<void> {

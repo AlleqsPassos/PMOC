@@ -5,7 +5,9 @@ export function AuthPageShell({
   description,
   children,
 }: {
-  title: string;
+  /** Omitido quando o próprio conteúdo controla o cabeçalho (ex.: /login,
+   * que alterna entre "Entrar" e "Ativar acesso" no cliente). */
+  title?: string;
   description?: string;
   children: ReactNode;
 }) {
@@ -18,12 +20,14 @@ export function AuthPageShell({
       </div>
 
       <div className="border-border bg-card w-full max-w-sm rounded-lg border p-6 shadow-sm">
-        <div className="mb-6 flex flex-col gap-1">
-          <h1 className="text-lg font-semibold">{title}</h1>
-          {description && (
-            <p className="text-muted-foreground text-sm">{description}</p>
-          )}
-        </div>
+        {title && (
+          <div className="mb-6 flex flex-col gap-1">
+            <h1 className="text-lg font-semibold">{title}</h1>
+            {description && (
+              <p className="text-muted-foreground text-sm">{description}</p>
+            )}
+          </div>
+        )}
         {children}
       </div>
     </div>

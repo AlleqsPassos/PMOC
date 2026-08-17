@@ -3,21 +3,41 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import {
   activateInvite,
   type ActivateInviteState,
 } from "@/features/invites/actions";
 
-export function ActivateInviteForm({ code }: { code: string }) {
-  const boundAction = activateInvite.bind(null, code);
+/**
+ * `defaultCode` só pré-preenche o campo quando a pessoa chegou pela rota
+ * /ativar-convite/[code]. O caminho divulgado é digitar o código na tela de
+ * login, então o campo continua editável nos dois casos.
+ */
+export function ActivateInviteForm({ defaultCode }: { defaultCode?: string }) {
   const [state, action, pending] = useActionState<ActivateInviteState, FormData>(
-    boundAction,
+    activateInvite,
     undefined,
   );
 
   return (
     <form action={action} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="code">Código do convite</Label>
+        <Input
+          id="code"
+          name="code"
+          defaultValue={defaultCode}
+          required
+          autoCapitalize="characters"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Ex.: A7K2MPQ4"
+          className="font-mono tracking-widest uppercase"
+        />
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="fullName">Seu nome completo</Label>
         <Input id="fullName" name="fullName" required />
@@ -30,10 +50,9 @@ export function ActivateInviteForm({ code }: { code: string }) {
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="password">Crie uma senha</Label>
-        <Input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="new-password"
           required
         />

@@ -7,7 +7,14 @@ import { assertPermission } from "@/lib/auth/permissions";
 import { equipmentSchema, type EquipmentStatus } from "@/features/equipment/schema";
 
 export type EquipmentFormState =
-  | { error?: string; fieldErrors?: Record<string, string[]>; success?: boolean }
+  | {
+      error?: string;
+      fieldErrors?: Record<string, string[]>;
+      success?: boolean;
+      /** Ver nota em UnitFormState — usado pelo assistente de cadastro. */
+      createdId?: string;
+      createdName?: string;
+    }
   | undefined;
 
 function parseEquipmentForm(formData: FormData) {
@@ -46,21 +53,25 @@ export async function createEquipment(
   }
 
   const supabase = await createSupabaseClient();
-  const { error } = await supabase.from("equipment").insert({
-    company_id: user.companyId,
-    unit_id: parsed.data.unitId,
-    sector_id: parsed.data.sectorId || null,
-    environment_id: parsed.data.environmentId,
-    tag: parsed.data.tag,
-    type: parsed.data.type || null,
-    brand: parsed.data.brand || null,
-    model: parsed.data.model || null,
-    serial_number: parsed.data.serialNumber || null,
-    capacity_btu: parsed.data.capacityBtu ? Number(parsed.data.capacityBtu) : null,
-    refrigerant: parsed.data.refrigerant || null,
-    voltage: parsed.data.voltage || null,
-    notes: parsed.data.notes || null,
-  });
+  const { data, error } = await supabase
+    .from("equipment")
+    .insert({
+      company_id: user.companyId,
+      unit_id: parsed.data.unitId,
+      sector_id: parsed.data.sectorId || null,
+      environment_id: parsed.data.environmentId,
+      tag: parsed.data.tag,
+      type: parsed.data.type || null,
+      brand: parsed.data.brand || null,
+      model: parsed.data.model || null,
+      serial_number: parsed.data.serialNumber || null,
+      capacity_btu: parsed.data.capacityBtu ? Number(parsed.data.capacityBtu) : null,
+      refrigerant: parsed.data.refrigerant || null,
+      voltage: parsed.data.voltage || null,
+      notes: parsed.data.notes || null,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     if (error.code === "23505") {
@@ -71,7 +82,7 @@ export async function createEquipment(
 
   revalidatePath("/equipamentos");
   revalidatePath(`/unidades/${parsed.data.unitId}`);
-  return { success: true };
+  return { success: true, createdId: data.id, createdName: parsed.data.tag };
 }
 
 /** Edita um equipamento existente. Requer edit_equipment. */

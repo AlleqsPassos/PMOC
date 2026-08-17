@@ -89,25 +89,27 @@ export async function revokeInvite(inviteId: string): Promise<void> {
 export type ActivateInviteState = { error?: string } | undefined;
 
 /**
- * Ativação pública (sem sessão prévia). O código não é validado por leitura
- * direta da tabela `invites` (sem policy anônima de select — ver
- * 0004_rls_base.sql) — a validação inteira acontece dentro do RPC
+ * Ativação pública (sem sessão prévia). O código vem do próprio formulário —
+ * o técnico digita na tela de login o que o admin repassou. Ele não é validado
+ * por leitura direta da tabela `invites` (sem policy anônima de select — ver
+ * 0004_rls_base.sql): a validação inteira acontece dentro do RPC
  * activate_invite(), que roda como SECURITY DEFINER.
  */
 export async function activateInvite(
-  code: string,
   _prevState: ActivateInviteState,
   formData: FormData,
 ): Promise<ActivateInviteState> {
   const parsed = activateInviteSchema.safeParse({
-    code,
+    // Digitado à mão: normaliza caixa e espaços antes de validar, senão um
+    // código colado com espaço sobrando falha como "convite inválido".
+    code: String(formData.get("code") ?? "").trim().toUpperCase(),
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     password: formData.get("password"),
   });
 
   if (!parsed.success) {
-    return { error: "Preencha nome, e-mail e senha (mín. 8 caracteres)." };
+    return { error: "Preencha o código, nome, e-mail e senha (mín. 8 caracteres)." };
   }
 
   const supabase = await createClient();
@@ -147,5 +149,5 @@ export async function activateInvite(
     return { error: "Convite inválido, expirado ou já utilizado." };
   }
 
-  redirect("/dashboard");
+  redirect("/minhas-atividades");
 }

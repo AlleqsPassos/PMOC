@@ -9,6 +9,38 @@ function firstOf<T>(value: T | T[] | null): T | null {
 }
 
 /**
+ * Zera o banco local quando o dispositivo troca de usuário.
+ *
+ * O IndexedDB é por origem, não por sessão: `logout()` derruba só o cookie
+ * do Supabase. Sem esta checagem, num tablet compartilhado (o cenário real
+ * do hospital) o técnico seguinte via `bulkPut` herdaria as OS e chamados do
+ * anterior — o pull filtra por `assigned_user_id`, mas `bulkPut` só mescla,
+ * nunca remove o que ficou. Pior: itens de outbox do usuário anterior
+ * drenariam sob a sessão do novo, gravando no servidor em nome de quem não
+ * fez a edição.
+ *
+ * Roda antes de qualquer escrita do pull, e o pull só acontece online — logo
+ * o outbox do usuário anterior já teve chance de drenar (`drainThenPull`).
+ */
+export async function resetLocalDbIfUserChanged(): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+
+  const previous = await offlineDb.meta.get("userId");
+  if (!previous) return;
+
+  const {
+    data: { user },
+  } = await createClient().auth.getUser();
+  // Sem sessão não dá para decidir de quem é o banco — não apaga nada, o
+  // dado local do dono continua válido até alguém de fato entrar.
+  if (!user || previous.value === user.id) return;
+
+  await offlineDb.transaction("rw", offlineDb.tables, async () => {
+    await Promise.all(offlineDb.tables.map((t) => t.clear()));
+  });
+}
+
+/**
  * Baixa tudo que o técnico logado precisa pra trabalhar offline: as OS
  * atribuídas a ele (+ seus maintenance_records/checklist/medições/
  * peças/anexos-metadados), os chamados dele, e o catálogo de referência da

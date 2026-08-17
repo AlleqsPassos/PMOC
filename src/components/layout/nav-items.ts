@@ -26,10 +26,12 @@ export type NavItem = {
 };
 
 export const primaryNavItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  // "Início" é a home desde a Fase 8 — para o admin é a fila de trabalho,
+  // para o técnico é o "meu dia" offline. O Dashboard virou consulta
+  // opcional de panorama e por isso desceu para o fim da lista.
   {
     href: "/minhas-atividades",
-    label: "Minhas atividades",
+    label: "Início",
     icon: ListChecks,
     requiredPermission: "view_tickets",
   },
@@ -75,6 +77,7 @@ export const primaryNavItems: NavItem[] = [
     icon: FileCheck2,
     requiredPermission: "generate_pmoc",
   },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 
 export const settingsNavItems: NavItem[] = [

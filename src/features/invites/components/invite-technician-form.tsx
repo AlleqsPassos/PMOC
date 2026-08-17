@@ -19,7 +19,6 @@ import {
   createInvite,
   type CreateInviteState,
 } from "@/features/invites/actions";
-import { inviteUrl } from "@/features/invites/invite-url";
 
 export function InviteTechnicianForm() {
   const [open, setOpen] = useState(false);
@@ -28,10 +27,10 @@ export function InviteTechnicianForm() {
     undefined,
   );
 
-  async function copyLink(code: string) {
+  async function copyCode(code: string) {
     try {
-      await navigator.clipboard.writeText(inviteUrl(code));
-      toast.success("Link copiado!");
+      await navigator.clipboard.writeText(code);
+      toast.success("Código copiado!");
     } catch {
       toast.error("Não foi possível copiar — copie manualmente.");
     }
@@ -56,19 +55,22 @@ export function InviteTechnicianForm() {
             <DialogHeader>
               <DialogTitle>Convite gerado</DialogTitle>
               <DialogDescription>
-                Repasse este link ao técnico (WhatsApp, e-mail) — é só abrir
-                e definir as próprias credenciais, nada pra digitar à mão.
+                Repasse este código ao técnico. Na tela de login ele clica em
+                &ldquo;Tenho um código de convite&rdquo;, digita o código e cria
+                a própria senha.
               </DialogDescription>
             </DialogHeader>
             <div className="bg-muted flex items-center justify-between gap-2 rounded-md p-3">
-              <span className="truncate font-mono text-sm">{inviteUrl(state.code)}</span>
+              <span className="font-mono text-xl font-semibold tracking-[0.3em]">
+                {state.code}
+              </span>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => copyLink(state.code!)}
-                aria-label="Copiar link de convite"
-                title="Copiar link"
+                onClick={() => copyCode(state.code!)}
+                aria-label="Copiar código do convite"
+                title="Copiar código"
               >
                 <Copy className="size-4" />
               </Button>

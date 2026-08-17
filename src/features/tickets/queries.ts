@@ -4,7 +4,7 @@ import type { TicketPriority, TicketStatus } from "@/features/tickets/schema";
 import { TICKET_CLOSED_STATUSES } from "@/features/tickets/schema";
 
 const LIST_SELECT =
-  "id, title, priority, status, opened_at, client:clients(corporate_name), unit:units(name), equipment:equipment(tag), assigned:users!tickets_assigned_user_id_fkey(full_name)";
+  "id, title, priority, status, opened_at, assigned_user_id, client:clients(corporate_name), unit:units(name), equipment:equipment(tag), assigned:users!tickets_assigned_user_id_fkey(full_name)";
 
 export type TicketListItem = {
   id: string;
@@ -15,6 +15,7 @@ export type TicketListItem = {
   clientName: string;
   unitName: string;
   equipmentTag: string | null;
+  assignedUserId: string | null;
   assignedName: string | null;
 };
 
@@ -29,6 +30,7 @@ function mapListRow(row: {
   priority: TicketPriority;
   status: TicketStatus;
   opened_at: string;
+  assigned_user_id: string | null;
   client: { corporate_name: string } | { corporate_name: string }[] | null;
   unit: { name: string } | { name: string }[] | null;
   equipment: { tag: string } | { tag: string }[] | null;
@@ -43,6 +45,7 @@ function mapListRow(row: {
     clientName: firstOf(row.client)?.corporate_name ?? "—",
     unitName: firstOf(row.unit)?.name ?? "—",
     equipmentTag: firstOf(row.equipment)?.tag ?? null,
+    assignedUserId: row.assigned_user_id,
     assignedName: firstOf(row.assigned)?.full_name ?? null,
   };
 }

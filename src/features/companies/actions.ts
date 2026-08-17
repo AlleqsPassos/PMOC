@@ -74,5 +74,5 @@ export async function createCompanyAndAdmin(
     };
   }
 
-  redirect("/dashboard");
+  redirect("/minhas-atividades");
 }

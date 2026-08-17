@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "PMOC+",
     description:
       "Gestão de manutenção de climatização e geração de PMOC para empresas de manutenção.",
-    start_url: "/dashboard",
+    start_url: "/minhas-atividades",
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#204a5c",

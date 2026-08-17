@@ -3,14 +3,14 @@
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { inviteUrl } from "@/features/invites/invite-url";
 
-/** Reenvia o link de um convite já existente — mesma lógica de invite-technician-form.tsx, extraída pra reuso aqui. */
-export function CopyInviteLinkButton({ code }: { code: string }) {
+/** Copia o código de um convite pendente — é o código, não uma URL, que o
+ * técnico digita na tela de login. */
+export function CopyInviteCodeButton({ code }: { code: string }) {
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(inviteUrl(code));
-      toast.success("Link copiado!");
+      await navigator.clipboard.writeText(code);
+      toast.success("Código copiado!");
     } catch {
       toast.error("Não foi possível copiar — copie manualmente.");
     }
@@ -22,8 +22,8 @@ export function CopyInviteLinkButton({ code }: { code: string }) {
       variant="ghost"
       size="icon-sm"
       onClick={handleCopy}
-      aria-label="Copiar link de convite"
-      title="Copiar link"
+      aria-label="Copiar código do convite"
+      title="Copiar código"
     >
       <Copy className="size-4" />
     </Button>

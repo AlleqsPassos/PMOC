@@ -9,7 +9,7 @@ function firstOf<T>(value: T | T[] | null): T | null {
 }
 
 const LIST_SELECT =
-  "id, title, type, status, scheduled_date, created_at, client:clients(corporate_name), unit:units(name), assigned:users!work_orders_assigned_user_id_fkey(full_name)";
+  "id, title, type, status, scheduled_date, created_at, assigned_user_id, origin_preventive_plan_id, client:clients(corporate_name), unit:units(name), assigned:users!work_orders_assigned_user_id_fkey(full_name)";
 
 export type WorkOrderListItem = {
   id: string;
@@ -20,7 +20,9 @@ export type WorkOrderListItem = {
   createdAt: string;
   clientName: string;
   unitName: string;
+  assignedUserId: string | null;
   assignedName: string | null;
+  originPreventivePlanId: string | null;
 };
 
 function mapListRow(row: {
@@ -30,6 +32,8 @@ function mapListRow(row: {
   status: WorkOrderStatus;
   scheduled_date: string | null;
   created_at: string;
+  assigned_user_id: string | null;
+  origin_preventive_plan_id: string | null;
   client: { corporate_name: string } | { corporate_name: string }[] | null;
   unit: { name: string } | { name: string }[] | null;
   assigned: { full_name: string } | { full_name: string }[] | null;
@@ -43,7 +47,9 @@ function mapListRow(row: {
     createdAt: row.created_at,
     clientName: firstOf(row.client)?.corporate_name ?? "—",
     unitName: firstOf(row.unit)?.name ?? "—",
+    assignedUserId: row.assigned_user_id,
     assignedName: firstOf(row.assigned)?.full_name ?? null,
+    originPreventivePlanId: row.origin_preventive_plan_id,
   };
 }
 

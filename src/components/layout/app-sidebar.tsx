@@ -81,7 +81,7 @@ export function AppSidebar({ permissionKeys }: { permissionKeys: string[] }) {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <Link
-          href="/dashboard"
+          href="/minhas-atividades"
           className="flex items-center gap-2 px-2 py-1.5"
         >
           <span className="text-sidebar-primary-foreground text-lg font-semibold tracking-tight">

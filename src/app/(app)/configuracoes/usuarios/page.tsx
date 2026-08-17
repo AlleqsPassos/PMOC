@@ -5,7 +5,7 @@ import { listCompanyUsers } from "@/features/users/queries";
 import { listPendingInvites } from "@/features/invites/queries";
 import { InviteTechnicianForm } from "@/features/invites/components/invite-technician-form";
 import { RevokeInviteButton } from "@/features/invites/components/revoke-invite-button";
-import { CopyInviteLinkButton } from "@/features/invites/components/copy-invite-link-button";
+import { CopyInviteCodeButton } from "@/features/invites/components/copy-invite-code-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -122,12 +122,14 @@ export default async function UsuariosPage() {
                 {invites.map((invite) => (
                   <TableRow key={invite.id}>
                     <TableCell>{invite.fullName ?? "—"}</TableCell>
-                    <TableCell className="font-mono">{invite.code}</TableCell>
+                    <TableCell className="font-mono tracking-widest">
+                    {invite.code}
+                  </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(invite.expiresAt).toLocaleDateString("pt-BR")}
                     </TableCell>
                     <TableCell className="flex items-center gap-1">
-                      <CopyInviteLinkButton code={invite.code} />
+                      <CopyInviteCodeButton code={invite.code} />
                       <RevokeInviteButton inviteId={invite.id} />
                     </TableCell>
                   </TableRow>

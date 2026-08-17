@@ -29,6 +29,8 @@ function parsePlanForm(formData: FormData) {
 
 function revalidatePlans(planId?: string) {
   revalidatePath("/preventivas");
+  // Preventiva sem OS aparece na fila de trabalho da home (Fase 8).
+  revalidatePath("/minhas-atividades");
   revalidatePath("/dashboard");
   if (planId) revalidatePath(`/preventivas/${planId}`);
 }

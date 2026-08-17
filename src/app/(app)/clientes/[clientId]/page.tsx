@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { getClientById } from "@/features/clients/queries";
 import { listUnitsForClient } from "@/features/units/queries";
 import { ClientFormDialog } from "@/features/clients/components/client-form-dialog";
 import { ClientStatusToggle } from "@/features/clients/components/client-status-toggle";
-import { UnitFormDialog } from "@/features/units/components/unit-form-dialog";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -91,12 +92,12 @@ export default async function ClienteDetalhePage(
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Unidades</CardTitle>
           {canCreateUnit && (
-            <UnitFormDialog
-              mode="create"
-              clientOptions={[]}
-              fixedClientId={client.id}
-              fixedClientName={client.corporateName}
-            />
+            <Button asChild size="sm">
+              <Link href={`/unidades/nova?clientId=${client.id}`}>
+                <Plus className="size-4" />
+                Nova unidade
+              </Link>
+            </Button>
           )}
         </CardHeader>
         <CardContent>

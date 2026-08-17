@@ -9,3 +9,17 @@
 export function getTodayDateString(timeZone = "America/Sao_Paulo"): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
 }
+
+/**
+ * Converte um `timestamptz` (ISO com hora) para "YYYY-MM-DD" no fuso da
+ * operação. Necessário sempre que uma data com hora vai ser comparada ou
+ * exibida junto de colunas `date` puras: cortar a string ISO com `.slice(0,10)`
+ * daria o dia em **UTC**, e um chamado aberto às 21h de Brasília apareceria
+ * como sendo do dia seguinte.
+ */
+export function toLocalDateString(
+  iso: string,
+  timeZone = "America/Sao_Paulo",
+): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date(iso));
+}

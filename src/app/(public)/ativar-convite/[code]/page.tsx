@@ -14,7 +14,7 @@ export default async function AtivarConvitePage(
       title="Ativar acesso"
       description="Defina suas credenciais para começar a usar o PMOC+."
     >
-      <ActivateInviteForm code={code} />
+      <ActivateInviteForm defaultCode={code} />
     </AuthPageShell>
   );
 }

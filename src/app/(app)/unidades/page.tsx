@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { listUnits } from "@/features/units/queries";
 import { listClientOptions } from "@/features/clients/queries";
-import { UnitFormDialog } from "@/features/units/components/unit-form-dialog";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -48,7 +49,14 @@ export default async function UnidadesPage() {
               Cadastre um cliente primeiro.
             </p>
           ) : (
-            <UnitFormDialog mode="create" clientOptions={clientOptions} />
+            // Criar unidade entra pelo assistente (Fase 8) — unidade, setores,
+            // ambientes e equipamentos numa sequência só.
+            <Button asChild size="sm">
+              <Link href="/unidades/nova">
+                <Plus className="size-4" />
+                Nova unidade
+              </Link>
+            </Button>
           ))}
       </div>
 

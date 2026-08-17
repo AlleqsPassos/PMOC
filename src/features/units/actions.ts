@@ -11,7 +11,15 @@ import {
 } from "@/features/units/schema";
 
 export type UnitFormState =
-  | { error?: string; fieldErrors?: Record<string, string[]>; success?: boolean }
+  | {
+      error?: string;
+      fieldErrors?: Record<string, string[]>;
+      success?: boolean;
+      /** Id do registro recém-criado. O assistente de cadastro (Fase 8)
+       * encadeia as etapas com ele; os diálogos avulsos ignoram. */
+      createdId?: string;
+      createdName?: string;
+    }
   | undefined;
 
 // units -----------------------------------------------------------------
@@ -40,14 +48,18 @@ export async function createUnit(
   }
 
   const supabase = await createSupabaseClient();
-  const { error } = await supabase.from("units").insert({
-    company_id: user.companyId,
-    client_id: parsed.data.clientId,
-    name: parsed.data.name,
-    responsible_name: parsed.data.responsibleName || null,
-    phone: parsed.data.phone || null,
-    notes: parsed.data.notes || null,
-  });
+  const { data, error } = await supabase
+    .from("units")
+    .insert({
+      company_id: user.companyId,
+      client_id: parsed.data.clientId,
+      name: parsed.data.name,
+      responsible_name: parsed.data.responsibleName || null,
+      phone: parsed.data.phone || null,
+      notes: parsed.data.notes || null,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     return { error: `Não foi possível criar a unidade: ${error.message}` };
@@ -55,7 +67,7 @@ export async function createUnit(
 
   revalidatePath("/unidades");
   revalidatePath(`/clientes/${parsed.data.clientId}`);
-  return { success: true };
+  return { success: true, createdId: data.id, createdName: parsed.data.name };
 }
 
 /** Edita uma unidade existente. Requer edit_units. */
@@ -133,19 +145,23 @@ export async function createSector(
   }
 
   const supabase = await createSupabaseClient();
-  const { error } = await supabase.from("sectors").insert({
-    company_id: user.companyId,
-    unit_id: parsed.data.unitId,
-    name: parsed.data.name,
-    notes: parsed.data.notes || null,
-  });
+  const { data, error } = await supabase
+    .from("sectors")
+    .insert({
+      company_id: user.companyId,
+      unit_id: parsed.data.unitId,
+      name: parsed.data.name,
+      notes: parsed.data.notes || null,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     return { error: `Não foi possível criar o setor: ${error.message}` };
   }
 
   revalidatePath(`/unidades/${parsed.data.unitId}`);
-  return { success: true };
+  return { success: true, createdId: data.id, createdName: parsed.data.name };
 }
 
 /** Edita um setor. Requer edit_environments. */
@@ -231,20 +247,24 @@ export async function createEnvironment(
   }
 
   const supabase = await createSupabaseClient();
-  const { error } = await supabase.from("environments").insert({
-    company_id: user.companyId,
-    unit_id: parsed.data.unitId,
-    sector_id: parsed.data.sectorId || null,
-    name: parsed.data.name,
-    notes: parsed.data.notes || null,
-  });
+  const { data, error } = await supabase
+    .from("environments")
+    .insert({
+      company_id: user.companyId,
+      unit_id: parsed.data.unitId,
+      sector_id: parsed.data.sectorId || null,
+      name: parsed.data.name,
+      notes: parsed.data.notes || null,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     return { error: `Não foi possível criar o ambiente: ${error.message}` };
   }
 
   revalidatePath(`/unidades/${parsed.data.unitId}`);
-  return { success: true };
+  return { success: true, createdId: data.id, createdName: parsed.data.name };
 }
 
 /** Edita um ambiente. Requer edit_environments. */
