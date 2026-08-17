@@ -74,7 +74,6 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
 
   const [
     { data: workOrders },
-    { data: equipment },
     { data: templates },
     { data: templateItems },
     { data: measurementTypes },
@@ -86,10 +85,6 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
         "id, title, type, status, scheduled_date, started_at, finished_at, created_at, origin_ticket_id, client_id, unit_id, assigned_user_id, client:clients(corporate_name), unit:units(name)",
       )
       .eq("assigned_user_id", me.id),
-    supabase
-      .from("equipment")
-      .select("id, tag, type, unit_id, unit:units(client_id, name, client:clients(corporate_name))")
-      .is("deleted_at", null),
     supabase.from("checklist_templates").select("id, name, maintenance_type"),
     supabase
       .from("checklist_template_items")
@@ -109,10 +104,25 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
 
   const workOrderIds = (workOrders ?? []).map((w) => w.id);
 
+  /**
+   * Unidades onde o técnico tem trabalho — a fronteira do que o aparelho dele
+   * baixa (Fase 9). Antes, `equipment` vinha da empresa inteira: dado que ele
+   * não precisa e que fica guardado no dispositivo. Também é a chave da
+   * guarda de escopo da página da unidade.
+   */
+  const unitIds = Array.from(
+    new Set([
+      ...(workOrders ?? []).map((w) => w.unit_id),
+      ...(tickets ?? []).map((t) => t.unit_id),
+    ]),
+  ).filter(Boolean);
+
   const [
     { data: maintenanceRecords },
     { data: partsRequests },
     { data: attachments },
+    { data: equipment },
+    { data: environments },
   ] = await Promise.all([
     workOrderIds.length
       ? supabase
@@ -137,6 +147,22 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
             "id, work_order_id, maintenance_record_id, equipment_id, category, file_name, mime_type, size_bytes, storage_path, created_at",
           )
           .in("work_order_id", workOrderIds)
+      : Promise.resolve({ data: [] as never[] }),
+    unitIds.length
+      ? supabase
+          .from("equipment")
+          .select(
+            "id, tag, type, brand, model, unit_id, environment_id, unit:units(client_id, name, client:clients(corporate_name))",
+          )
+          .in("unit_id", unitIds)
+          .is("deleted_at", null)
+      : Promise.resolve({ data: [] as never[] }),
+    unitIds.length
+      ? supabase
+          .from("environments")
+          .select("id, unit_id, sector_id, name")
+          .in("unit_id", unitIds)
+          .is("deleted_at", null)
       : Promise.resolve({ data: [] as never[] }),
   ]);
 
@@ -169,6 +195,7 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
       offlineDb.attachments,
       offlineDb.tickets,
       offlineDb.equipment,
+      offlineDb.environments,
       offlineDb.checklistTemplates,
       offlineDb.checklistTemplateItems,
       offlineDb.measurementTypes,
@@ -295,12 +322,24 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
             id: e.id,
             tag: e.tag,
             type: e.type,
+            brand: e.brand,
+            model: e.model,
             unitId: e.unit_id,
+            environmentId: e.environment_id,
             unitName: unit?.name ?? "—",
             clientId: unit?.client_id ?? "",
             clientName: client?.corporate_name ?? "—",
           };
         }),
+      );
+
+      await offlineDb.environments.bulkPut(
+        (environments ?? []).map((e) => ({
+          id: e.id,
+          unitId: e.unit_id,
+          sectorId: e.sector_id,
+          name: e.name,
+        })),
       );
 
       await offlineDb.checklistTemplates.bulkPut(

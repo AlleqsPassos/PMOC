@@ -8,8 +8,8 @@ import type { TicketPriority } from "@/features/tickets/schema";
 /**
  * Equivalente offline de createTicketFromEquipment (Fase 3) — a
  * localização (cliente/unidade) vem do cache local de equipamentos
- * (`offlineDb.equipment`, populado por pull-sync.ts com o dataset inteiro
- * da empresa, não só o do técnico). Setor/ambiente ficam null aqui — só o
+ * (`offlineDb.equipment`, que desde a Fase 9 cobre só as unidades atribuídas
+ * ao técnico, não a empresa inteira). Setor/ambiente ficam null aqui — só o
  * fluxo online resolve essa granularidade extra; simplificação aceita
  * porque não afeta RLS/segurança (colunas nullable), só o nível de detalhe
  * exibido no chamado.

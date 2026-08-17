@@ -4,7 +4,9 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AlertTriangle, CalendarClock, FileCheck2, Headset, Wrench } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getUserPermissionKeys } from "@/lib/auth/permissions";
+import { isDispatcherFromKeys } from "@/lib/auth/is-dispatcher";
+import { ProgressoTecnico } from "@/features/maintenance/components/progresso-tecnico";
 import { getCurrentCompany } from "@/features/companies/queries";
 import { countEquipment } from "@/features/equipment/queries";
 import { countUrgentOpenTickets } from "@/features/tickets/queries";
@@ -25,27 +27,44 @@ export const metadata: Metadata = { title: "Dashboard — PMOC+" };
 
 // Todos os cards mostram dado real (5º card "OS atrasadas" chegou na Fase
 // 7). Nenhum gráfico decorativo: só o que já tem utilidade operacional.
+//
+// Fase 9 — duas visões, como a home: o despachante vê o panorama da empresa;
+// o técnico vê o progresso do próprio atendimento (contagem de equipamentos
+// cadastrados ou de PMOCs gerados não ajuda quem está em campo).
 export default async function DashboardPage() {
+  const [user, keys] = await Promise.all([requireUser(), getUserPermissionKeys()]);
+
+  if (!isDispatcherFromKeys(keys)) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Meu progresso</h1>
+          <p className="text-muted-foreground text-sm">
+            Quanto falta para fechar as ordens de serviço atribuídas a você.
+          </p>
+        </div>
+        <ProgressoTecnico />
+      </div>
+    );
+  }
+
   const [
-    user,
     company,
     equipmentCount,
     urgentTicketsCount,
     activePreventivePlansCount,
     overdueWorkOrdersCount,
     generatedPmocsCount,
-    canViewAudit,
   ] = await Promise.all([
-    requireUser(),
     getCurrentCompany(),
     countEquipment(),
     countUrgentOpenTickets(),
     countActivePreventivePlans(),
     countOverdueWorkOrders(),
     countGeneratedPmocs(),
-    hasPermission("view_audit_log"),
   ]);
 
+  const canViewAudit = keys.has("view_audit_log");
   const recentActivity = canViewAudit ? await listRecentAuditActivity(5) : [];
 
   const overviewCards = [

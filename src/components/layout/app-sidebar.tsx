@@ -19,12 +19,17 @@ import {
   settingsNavItems,
   type NavItem,
 } from "@/components/layout/nav-items";
+import { isDispatcherFromKeys } from "@/lib/auth/is-dispatcher";
 
-function visibleItems(items: NavItem[], permissionKeys: string[]) {
-  return items.filter(
-    (item) =>
-      !item.requiredPermission || permissionKeys.includes(item.requiredPermission),
-  );
+function visibleItems(
+  items: NavItem[],
+  permissionKeys: Set<string>,
+  isDispatcher: boolean,
+) {
+  return items.filter((item) => {
+    if (item.dispatcherOnly && !isDispatcher) return false;
+    return !item.requiredPermission || permissionKeys.has(item.requiredPermission);
+  });
 }
 
 function NavList({
@@ -74,8 +79,11 @@ function NavList({
 export function AppSidebar({ permissionKeys }: { permissionKeys: string[] }) {
   const pathname = usePathname();
 
-  const primaryVisible = visibleItems(primaryNavItems, permissionKeys);
-  const settingsVisible = visibleItems(settingsNavItems, permissionKeys);
+  const keys = new Set(permissionKeys);
+  const isDispatcher = isDispatcherFromKeys(keys);
+
+  const primaryVisible = visibleItems(primaryNavItems, keys, isDispatcher);
+  const settingsVisible = visibleItems(settingsNavItems, keys, isDispatcher);
 
   return (
     <Sidebar collapsible="icon">

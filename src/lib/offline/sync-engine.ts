@@ -89,6 +89,16 @@ async function applyOutboxItem(item: OutboxItem): Promise<void> {
 
 /** Supabase/PostgREST erros vêm como objeto plano `{message, details, hint, code}`, não `instanceof Error`. */
 function errorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "code" in err) {
+    const code = String((err as { code: unknown }).code);
+    // 23505 = unique_violation. O caso real é a tag do equipamento, que é
+    // única por empresa: offline não há como validar isso no aparelho (o
+    // técnico não tem o catálogo completo), então a colisão só aparece aqui.
+    // A mensagem crua do Postgres não diz o que fazer — esta diz.
+    if (code === "23505") {
+      return "Já existe um equipamento com essa tag na empresa. Descarte este cadastro e refaça com outra tag.";
+    }
+  }
   if (err instanceof Error) return err.message;
   if (err && typeof err === "object" && "message" in err) return String((err as { message: unknown }).message);
   return String(err);

@@ -21,6 +21,19 @@ export type NavItem = {
   icon: LucideIcon;
   /** Se ausente, o item aparece para qualquer usuário autenticado. */
   requiredPermission?: string;
+  /**
+   * Tela de despachante — escondida do técnico mesmo que ele tenha a
+   * permissão. Necessário porque `view_equipment`/`view_tickets`/
+   * `view_work_orders` são legitimamente dele (precisa delas para executar),
+   * mas as listagens globais que essas chaves liberam são ferramenta de
+   * coordenação, não de campo: o técnico chega no trabalho pelo que foi
+   * atribuído a ele, nunca navegando catálogo (Fase 9).
+   *
+   * Só afeta navegação. As rotas seguem acessíveis — `/ordens-servico/[id]/
+   * atender/[registroId]` é o fluxo de atendimento e precisa continuar
+   * alcançável, e o dado dessas telas já é escopado por RLS.
+   */
+  dispatcherOnly?: boolean;
   /** Rota ainda não implementada (Fase 2+) — aparece esmaecida, "Em breve". */
   comingSoon?: boolean;
 };
@@ -52,12 +65,14 @@ export const primaryNavItems: NavItem[] = [
     label: "Equipamentos",
     icon: Wrench,
     requiredPermission: "view_equipment",
+    dispatcherOnly: true,
   },
   {
     href: "/chamados",
     label: "Chamados",
     icon: Headset,
     requiredPermission: "view_tickets",
+    dispatcherOnly: true,
   },
   {
     href: "/preventivas",
@@ -70,6 +85,7 @@ export const primaryNavItems: NavItem[] = [
     label: "Ordens de serviço",
     icon: ClipboardList,
     requiredPermission: "view_work_orders",
+    dispatcherOnly: true,
   },
   {
     href: "/pmoc",

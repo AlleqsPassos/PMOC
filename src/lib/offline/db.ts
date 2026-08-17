@@ -124,7 +124,12 @@ export type OfflineTicket = {
   workOrderId: string | null;
 };
 
-/** Cache só-leitura — dataset pequeno (empresa única), pra cascata de criação de chamado ad-hoc offline. */
+/**
+ * Equipamentos das **unidades atribuídas** ao técnico (não da empresa toda —
+ * escopo apertado na Fase 9). Deixou de ser só-leitura nessa fase: o técnico
+ * cadastra em campo o aparelho que encontrou e não estava registrado, então a
+ * tabela recebe linhas locais que sobem pelo outbox.
+ */
 export type OfflineEquipment = {
   id: string;
   tag: string;
@@ -133,6 +138,23 @@ export type OfflineEquipment = {
   unitName: string;
   clientId: string;
   clientName: string;
+  /** Sala onde está instalado — obrigatório no servidor (`equipment.environment_id` é NOT NULL). */
+  environmentId: string;
+  brand: string | null;
+  model: string | null;
+};
+
+/**
+ * Ambientes das unidades atribuídas. Entrou na Fase 9 porque
+ * `equipment.environment_id` é NOT NULL: sem ambiente em cache (e sem poder
+ * criar um), cadastrar equipamento em campo travaria em qualquer sala nova.
+ * Também gravável offline, pelo mesmo motivo.
+ */
+export type OfflineEnvironment = {
+  id: string;
+  unitId: string;
+  sectorId: string | null;
+  name: string;
 };
 
 export type OfflineChecklistTemplate = {
@@ -162,7 +184,9 @@ export type OutboxTable =
   | "measurements"
   | "parts_requests"
   | "attachments"
-  | "tickets";
+  | "tickets"
+  | "equipment"
+  | "environments";
 
 /**
  * Um item por mutação offline, na ordem em que foi criada. `payload` já
@@ -196,6 +220,7 @@ class PmocOfflineDB extends Dexie {
   attachmentBlobs!: EntityTable<OfflineAttachmentBlob, "id">;
   tickets!: EntityTable<OfflineTicket, "id">;
   equipment!: EntityTable<OfflineEquipment, "id">;
+  environments!: EntityTable<OfflineEnvironment, "id">;
   checklistTemplates!: EntityTable<OfflineChecklistTemplate, "id">;
   checklistTemplateItems!: EntityTable<OfflineChecklistTemplateItem, "id">;
   measurementTypes!: EntityTable<OfflineMeasurementType, "id">;
@@ -219,6 +244,21 @@ class PmocOfflineDB extends Dexie {
       measurementTypes: "id",
       outbox: "id, status, createdAt",
       meta: "key",
+    });
+
+    // Fase 9 — `environments` entra em cache (dependência NOT NULL de
+    // equipment) e `equipment` ganha índice por ambiente. Dexie migra sozinho:
+    // tabelas já existentes mantêm os dados, a nova nasce vazia e é populada
+    // no primeiro pull. As colunas novas de `equipment` (environmentId, brand,
+    // model) não precisam de migração de dados — o pull sobrescreve as linhas
+    // por `bulkPut` de qualquer forma.
+    // `tag` e `workOrders.unitId` entram como índice porque a Fase 9 consulta
+    // por eles (checagem local de tag duplicada e agrupamento por unidade) —
+    // Dexie exige índice declarado para `where()`, não filtra campo solto.
+    this.version(2).stores({
+      workOrders: "id, assignedUserId, status, unitId",
+      equipment: "id, unitId, clientId, environmentId, tag",
+      environments: "id, unitId, sectorId",
     });
   }
 }

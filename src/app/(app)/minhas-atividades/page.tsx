@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { getUserPermissionKeys } from "@/lib/auth/permissions";
+import { isDispatcherFromKeys } from "@/lib/auth/is-dispatcher";
 import { MinhasAtividadesList } from "@/features/maintenance/components/minhas-atividades-list";
 import { FilaDeTrabalho } from "@/features/dispatch/components/fila-de-trabalho";
 import { AccessDenied } from "@/components/shared/access-denied";
@@ -23,13 +24,13 @@ export const metadata: Metadata = { title: "Início — PMOC+" };
 export default async function InicioPage() {
   const user = await requireUser();
 
-  const [canViewTickets, canViewWorkOrders, canAssignTickets, canManageWorkOrders] =
-    await Promise.all([
-      hasPermission("view_tickets"),
-      hasPermission("view_work_orders"),
-      hasPermission("assign_tickets"),
-      hasPermission("manage_work_orders"),
-    ]);
+  // Uma leitura do conjunto de permissões em vez de quatro RPCs, e a mesma
+  // fonte que o menu usa — ver is-dispatcher.ts.
+  const keys = await getUserPermissionKeys();
+  const canViewTickets = keys.has("view_tickets");
+  const canViewWorkOrders = keys.has("view_work_orders");
+  const canAssignTickets = keys.has("assign_tickets");
+  const canManageWorkOrders = keys.has("manage_work_orders");
 
   if (!canViewTickets && !canViewWorkOrders) {
     return (
@@ -37,7 +38,7 @@ export default async function InicioPage() {
     );
   }
 
-  const isDispatcher = canAssignTickets || canManageWorkOrders;
+  const isDispatcher = isDispatcherFromKeys(keys);
 
   return (
     <div className="flex flex-col gap-6">
