@@ -24,9 +24,10 @@ import { CompleteWorkOrderButton } from "@/features/maintenance/components/compl
 import { type TicketStatus, type TicketPriority } from "@/features/tickets/schema";
 import { TicketStatusBadge } from "@/features/tickets/components/ticket-status-badge";
 import { TicketPriorityBadge } from "@/features/tickets/components/ticket-priority-badge";
+import { InfoHint } from "@/components/shared/info-hint";
 import { PageBackHeader } from "@/components/shared/page-back-header";
 import { WorkBucketBadge } from "@/components/shared/work-bucket-badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 /**
@@ -168,8 +169,15 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
       counts: bucketCounts(work),
       preventivaCount: countPending(preventivas),
       preventivaWorkOrders: preventivas.length,
-      corretivaCount: countPending(corretivas),
-      corretivaWorkOrders: corretivas.length,
+      // Chamado designado **é** corretiva a atender — é assim que a operação
+      // fala, e separá-los criava uma caixa de limbo ("ainda sem OS gerada") que
+      // não dizia ao técnico o que fazer. Desde a Fase 16 designar já gera a OS,
+      // então o caso sem OS só sobra para chamado sem equipamento.
+      corretivaCount:
+        countPending(corretivas) +
+        work.assignedTickets.filter((t) => !t.workOrderId).length,
+      corretivaWorkOrders:
+        corretivas.length + work.assignedTickets.filter((t) => !t.workOrderId).length,
       equipmentCount: equipment.length,
       assignedTickets: work.assignedTickets,
       raisedTickets: work.raisedTickets,
@@ -232,11 +240,8 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <FileCheck2 className="text-primary size-4" />
                   Pronta para fechar
+                  <InfoHint text="Todos os equipamentos foram atendidos. Feche a OS para o administrador saber que acabou." />
                 </CardTitle>
-                <CardDescription>
-                  Todos os equipamentos foram atendidos. Feche a OS para o
-                  administrador saber que acabou.
-                </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
                 {data.closable.map((wo) => (
@@ -286,32 +291,6 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
             description={`${data.equipmentCount} cadastrado${data.equipmentCount === 1 ? "" : "s"} nesta unidade. Achou um que não está aqui? Cadastre.`}
           />
 
-          {data.assignedTickets.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Headset className="text-muted-foreground size-4" />
-                  Chamados em aberto
-                </CardTitle>
-                <CardDescription>Ainda sem ordem de serviço gerada.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                {data.assignedTickets.map((t) => (
-                  <Link
-                    key={t.id}
-                    href={`/chamados/${t.id}`}
-                    className="hover:bg-accent/50 flex items-center justify-between gap-2 rounded-md border p-3 text-sm transition-colors"
-                  >
-                    <span className="min-w-0 truncate">{t.title}</span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <TicketPriorityBadge priority={t.priority as TicketPriority} />
-                      <TicketStatusBadge status={t.status as TicketStatus} />
-                    </span>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         <TabsContent value="impedimento" className="flex flex-col gap-4">
@@ -325,11 +304,8 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
                     <CardTitle className="flex items-center gap-2 text-base">
                       <TriangleAlert className="text-destructive size-4" />
                       Equipamentos parados
+                      <InfoHint text="O administrador vai definir quando e quem resolve. Até lá, eles ficam pendentes aqui." />
                     </CardTitle>
-                    <CardDescription>
-                      O administrador vai definir quando e quem resolve. Até lá,
-                      eles ficam pendentes aqui.
-                    </CardDescription>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2">
                     {data.impedimentos.map((item) => (
@@ -345,11 +321,8 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
                     <CardTitle className="flex items-center gap-2 text-base">
                       <Headset className="text-muted-foreground size-4" />
                       Corretivas que você abriu
+                      <InfoHint text="Defeitos encontrados em campo, ainda aguardando ordem de serviço do administrador." />
                     </CardTitle>
-                    <CardDescription>
-                      Defeitos encontrados em campo, ainda aguardando ordem de
-                      serviço do administrador.
-                    </CardDescription>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2">
                     {data.raisedTickets.map((t) => (
@@ -381,11 +354,8 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <CheckCircle2 className="text-muted-foreground size-4" />
                   Atendimentos concluídos
+                  <InfoHint text="Toque em visualizar para conferir ou corrigir o que foi registrado." />
                 </CardTitle>
-                <CardDescription>
-                  Toque em visualizar para conferir ou corrigir o que foi
-                  registrado.
-                </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
                 {data.concluidos.map((item) => (

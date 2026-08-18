@@ -22,6 +22,7 @@
 | 13 | Segunda rodada no celular (concluídos por ambiente, impedimento tira o aparelho dos concluídos, cores por divisão, voltar direto para a unidade) | ✅ Concluída |
 | 14 | O impedimento vira tela própria (defeito, fotos, peça e laudo em vez da preventiva da sala) | ✅ Concluída |
 | 15 | Medição obrigatória para concluir + o pull passa a remover o que sumiu do servidor | ✅ Concluída |
+| 16 | Chamado é corretiva (OS nasce na designação), impedimento com motivo, dicas atrás do ícone de informação | ✅ Concluída |
 | — | Deploy inicial no Vercel | ✅ Concluída — `https://pmoc-plus.vercel.app`, projeto `alex-6e84/pmoc-plus` conectado ao repo GitHub (auto-deploy a cada push em `master`) |
 
 ## Contexto
@@ -633,6 +634,19 @@ Duas coisas pequenas de descrever e grandes de consequência, pedidas antes de r
 **Erro encontrado durante a própria implementação:** a primeira versão lia o outbox **dentro** da transação Dexie do pull, e `outbox` não está na lista de tabelas declarada nela. O Dexie recusa qualquer store fora do escopo declarado, então todo pull passou a morrer com `NotFoundError: The specified object store was not found` — em silêncio na tela, porque a promessa rejeitada não tinha tratamento e o cache antigo continuava servindo. Corrigido lendo a fila antes de abrir a transação, o que também deixa explícito que o pull só consulta o outbox, nunca escreve nele.
 
 Verificado: build/lint limpos; empresa de teste zerada e o aparelho reconciliado no pull seguinte — IndexedDB com `measurements`, `checklistItems`, `attachments` e `partsRequests` em zero, o chamado fantasma removido e o Início mostrando só "em aberto"; e, iniciando a preventiva de Emergencia I, "Concluir ambiente" desabilitado com "Preencha todas as medições para concluir. Falta em: 2210045001, 2210045002".
+
+### FASE 16 — Chamado é corretiva ✅ concluída
+
+O usuário perguntou por que o técnico via um cartão "Chamados em aberto — ainda sem ordem de serviço gerada", se o administrador só coloca um chamado ali para ele ir atender. E foi direto ao ponto que eu vinha tratando errado: **chamado e corretiva são a mesma coisa** na operação. O que varia é o momento — às vezes ele atende uma corretiva que acabou de ser aberta, às vezes uma que já foi atendida e estava aguardando peça. Nenhuma migration.
+
+- **Designar o chamado gera a OS corretiva** (`ensureCorrectiveWorkOrderForTicket`, chamada por `assignTicket`). Era o elo que faltava: sem OS não existe `maintenance_record`, e sem registro não há onde pendurar foto, peça e laudo — o técnico recebia um chamado que não dava para atender. Designar já significa "vai consertar isso", então a OS nasce ali, silenciosa, com o chamado ligado a ela. Falha na geração não derruba a designação (que é o que o despachante pediu): fica no log, e a OS pode ser criada à mão pelo diálogo de sempre. Chamado **sem equipamento** (a coluna é nullable) não gera nada — não há registro a criar — e aparece na lista de corretivas marcado "Aguardando OS", em vez de sumir.
+- **O cartão separado de chamados saiu da unidade.** O chamado designado entra na contagem e na lista de **Corretivas**, que é onde o técnico procura serviço de conserto.
+- **Ambiente concluído sai de "Preventivas".** A tela é a lista de salas *a atender*; mantê-la crescendo com selos "Concluído" fazia a lista engordar justamente à medida que o trabalho acabava. O que já foi feito vive na aba Concluídos da unidade. A página continua existindo enquanto houver serviço em aberto, como o usuário pediu depois de entender a navegação.
+- **"Salvar alterações" só na revisão.** Durante o atendimento normal cada campo já grava ao sair e o fim do trabalho é "Concluir ambiente" — o botão aparecia como um segundo caminho concorrente. Agora ele existe só quando o ambiente já está concluído e o técnico voltou para corrigir algo, que é o caso em que ele precisa de um ponto final explícito.
+- **Impedimento pergunta o motivo primeiro** (`ImpedimentoDialog`): **"Ar não funciona"** abre a corretiva de verdade — descrição, prioridade, fotos do problema e peça; **"Outros"** é impedimento de circunstância (sala ocupada, acesso trancado, força maior) e pede só o motivo escrito, sem foto nem peça, porque não há defeito a fotografar. Nos dois casos nasce o chamado: é o registro durável que tira o aparelho da rotina da preventiva e o coloca na fila do administrador.
+- **As dicas foram para trás de um ícone de informação** (`components/shared/info-hint.tsx`). Estavam certas, mas empilhadas em toda tela roubavam a altura do que o técnico foi ali fazer, e quem já sabe usar o app não precisa relê-las todo dia. Não usa o Tooltip do Radix porque tooltip é gesto de mouse — em toque depende de long-press e frequentemente não abre; um botão com estado próprio funciona nos dois, e o `title` cobre o hover sem JavaScript.
+
+Verificado: build/lint limpos; conferido em viewport de celular — a unidade sem o cartão de chamados, "Preventivas · 3 equipamentos a atender", e o chamado sem equipamento aparecendo em Corretivas do Bloco A com o selo "Aguardando OS".
 
 ### Fora de escopo do MVP (explícito no briefing original)
 Billing/assinatura, controle de estoque, portal do cliente, QR codes, integração WhatsApp API, push notifications nativas, assinatura digital/e-signature, exportação de laudo em PDF avulso (fora do fluxo de PMOC), apps nativos (iOS/Android) — só PWA. Arquitetura deliberadamente deixa pontos de extensão (campos nullable, FKs opcionais) para que nenhum desses itens exija migração destrutiva quando for priorizado.

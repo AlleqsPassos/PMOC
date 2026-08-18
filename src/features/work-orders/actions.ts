@@ -102,6 +102,68 @@ export async function generateWorkOrderFromTicket(
 }
 
 /**
+ * Garante que um chamado designado a um técnico tenha OS corretiva para ele
+ * atender (Fase 16).
+ *
+ * Existe porque, no vocabulário da operação, **chamado e corretiva são a mesma
+ * coisa**: quando o administrador designa o chamado a alguém, ele está mandando
+ * consertar. Sem OS não há `maintenance_record`, e sem registro não há onde
+ * pendurar foto, peça e laudo — o técnico via o chamado numa espécie de limbo,
+ * "ainda sem ordem de serviço gerada", sem nada para fazer com ele.
+ *
+ * Silenciosa por design: é um efeito da designação, não uma ação separada. Se
+ * o chamado não tem equipamento (a coluna é nullable), não há registro a criar e
+ * a função não faz nada — a OS continua sendo gerada à mão, escolhendo os
+ * equipamentos no diálogo.
+ */
+export async function ensureCorrectiveWorkOrderForTicket(
+  ticketId: string,
+  assignedUserId: string,
+): Promise<void> {
+  const user = await requireUser();
+  await assertPermission("manage_work_orders");
+
+  const supabase = await createSupabaseClient();
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("client_id, unit_id, equipment_id, work_order_id, title")
+    .eq("id", ticketId)
+    .maybeSingle();
+
+  if (!ticket || ticket.work_order_id || !ticket.equipment_id) return;
+
+  const { data: workOrder, error: woError } = await supabase
+    .from("work_orders")
+    .insert({
+      company_id: user.companyId,
+      client_id: ticket.client_id,
+      unit_id: ticket.unit_id,
+      type: "corretiva",
+      origin_ticket_id: ticketId,
+      title: ticket.title,
+      assigned_user_id: assignedUserId,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (woError || !workOrder) {
+    console.error("[ensureCorrectiveWorkOrderForTicket]", woError?.message);
+    return;
+  }
+
+  const { error: mrError } = await supabase.from("maintenance_records").insert({
+    company_id: user.companyId,
+    work_order_id: workOrder.id,
+    equipment_id: ticket.equipment_id,
+  });
+  if (mrError) console.error("[ensureCorrectiveWorkOrderForTicket]", mrError.message);
+
+  await supabase.from("tickets").update({ work_order_id: workOrder.id }).eq("id", ticketId);
+  revalidateWorkOrders(workOrder.id);
+}
+
+/**
  * Gera uma OS preventiva a partir de um plano — equipamentos vêm de
  * preventive_plan_equipment, não são escolhidos na hora. Requer
  * manage_work_orders.

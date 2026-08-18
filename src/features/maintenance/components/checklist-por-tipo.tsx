@@ -3,7 +3,8 @@
 import { useTransition } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { setGroupChecklistItemOffline } from "@/features/maintenance/offline-actions";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/shared/info-hint";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export type ChecklistGroup = {
   equipmentType: string;
@@ -40,10 +41,10 @@ export function ChecklistPorTipo({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Checklist</CardTitle>
-        <CardDescription>
-          O que foi feito nos equipamentos deste ambiente.
-        </CardDescription>
+        <CardTitle className="flex items-center gap-2 text-base">
+          Checklist
+          <InfoHint text="O que foi feito nos equipamentos deste ambiente. Um toque marca o item em todos os aparelhos do mesmo tipo." />
+        </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {groups.map((group) => (

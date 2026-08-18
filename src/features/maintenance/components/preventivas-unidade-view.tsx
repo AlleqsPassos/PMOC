@@ -6,7 +6,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
 import { loadWorkByUnit } from "@/features/maintenance/offline-queries";
 import { PageBackHeader } from "@/components/shared/page-back-header";
-import { Badge } from "@/components/ui/badge";
+import { WorkBucketBadge } from "@/components/shared/work-bucket-badge";
 import { Card, CardContent } from "@/components/ui/card";
 
 const SEM_SETOR = "__sem_setor__";
@@ -60,7 +60,13 @@ export function PreventivasUnidadeView({ unitId }: { unitId: string }) {
       }
     }
 
-    const list = Array.from(buckets.values()).sort((a, b) => a.name.localeCompare(b.name));
+    // Ambiente sem nada a fazer sai daqui (Fase 16): esta tela é a lista de
+    // salas **a atender**, e o que já foi feito vive na aba Concluídos da
+    // unidade. Mantê-lo aqui com o selo "Concluído" fazia a lista crescer
+    // justamente à medida que o trabalho terminava.
+    const list = Array.from(buckets.values())
+      .filter((b) => b.pending > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
     const usedSectorIds = new Set(list.map((b) => b.sectorId).filter(Boolean));
     const groupBySector = usedSectorIds.size > 0;
 
@@ -107,7 +113,8 @@ export function PreventivasUnidadeView({ unitId }: { unitId: string }) {
       {data.isEmpty ? (
         <Card>
           <CardContent className="text-muted-foreground py-8 text-center text-sm">
-            Nenhuma preventiva em aberto nesta unidade.
+            Nada a atender nesta preventiva. O que já foi feito está na aba
+            Concluídos, na página da unidade.
           </CardContent>
         </Card>
       ) : (
@@ -129,11 +136,7 @@ export function PreventivasUnidadeView({ unitId }: { unitId: string }) {
                   </p>
                 </div>
                 <span className="flex shrink-0 items-center gap-2">
-                  {item.pending === 0 ? (
-                    <Badge variant="secondary">Concluído</Badge>
-                  ) : (
-                    <Badge variant="outline">{item.pending} a fazer</Badge>
-                  )}
+                  <WorkBucketBadge tone="aberto">{item.pending} a fazer</WorkBucketBadge>
                   <ChevronRight className="text-muted-foreground size-4" />
                 </span>
               </Link>

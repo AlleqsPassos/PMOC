@@ -24,10 +24,11 @@ import {
   type TicketStatus,
 } from "@/features/tickets/schema";
 import { WorkBucketBadge } from "@/components/shared/work-bucket-badge";
+import { InfoHint } from "@/components/shared/info-hint";
 import { PageBackHeader } from "@/components/shared/page-back-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const SEM_TIPO = "Sem tipo definido";
 
@@ -307,12 +308,16 @@ export function AmbientePreventivaView({
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Equipamentos</CardTitle>
-              <CardDescription>
-                {workOrderClosed
-                  ? "A ordem de serviço foi fechada, mas dá para corrigir o que foi medido."
-                  : "Preencha as medições de cada aparelho. Encontrou defeito? Abra o impedimento ali mesmo."}
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2 text-base">
+                Equipamentos
+                <InfoHint
+                  text={
+                    workOrderClosed
+                      ? "A ordem de serviço foi fechada, mas dá para corrigir o que foi medido."
+                      : "Preencha as medições de cada aparelho. Encontrou defeito? Abra o impedimento ali mesmo."
+                  }
+                />
+              </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
               {data.equipments.map(({ record, tag, measurements }) => (
@@ -363,7 +368,11 @@ export function AmbientePreventivaView({
             onChanged={() => setDirty(true)}
           />
 
-          {dirty && (
+          {/* Só na revisão: durante o atendimento normal cada campo já grava ao
+              sair, e o fim do trabalho é "Concluir ambiente". O botão de salvar
+              existe para quem voltou em Concluídos corrigir algo — aí ele
+              precisa de um ponto final explícito. */}
+          {finished && dirty && (
             <div className="flex justify-end">
               <Button
                 variant="outline"

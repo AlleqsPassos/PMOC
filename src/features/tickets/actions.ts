@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/session";
-import { assertPermission } from "@/lib/auth/permissions";
+import { assertPermission, hasPermission } from "@/lib/auth/permissions";
+import { ensureCorrectiveWorkOrderForTicket } from "@/features/work-orders/actions";
 import { ticketQuickSchema, ticketSchema, type TicketStatus } from "@/features/tickets/schema";
 
 export type TicketFormState =
@@ -118,6 +119,12 @@ export async function updateTicket(
  * Atribui (ou remove a atribuição de) um técnico. Requer assign_tickets.
  * Ao atribuir um chamado ainda 'aberto', avança o status para 'designado' —
  * a primeira transição do workflow acontece naturalmente aqui.
+ *
+ * Fase 16 — designar também **gera a OS corretiva**, quando o chamado tem
+ * equipamento e ainda não tem OS: designar já significa "vai consertar isso", e
+ * sem OS o técnico recebia um chamado que não dava para atender. Falha na
+ * geração não derruba a designação (que é o que o despachante pediu) — fica no
+ * log e a OS pode ser criada à mão pelo diálogo de sempre.
  */
 export async function assignTicket(
   ticketId: string,
@@ -140,6 +147,14 @@ export async function assignTicket(
     .from("tickets")
     .update({ assigned_user_id: assignedUserId, status: nextStatus })
     .eq("id", ticketId);
+
+  if (assignedUserId && (await hasPermission("manage_work_orders"))) {
+    try {
+      await ensureCorrectiveWorkOrderForTicket(ticketId, assignedUserId);
+    } catch (err) {
+      console.error("[assignTicket] geração da OS", err);
+    }
+  }
 
   revalidateTicket(ticketId);
 }

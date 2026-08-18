@@ -6,6 +6,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
 import { bucketOfRecord, impededEquipmentIds, loadWorkByUnit } from "@/features/maintenance/offline-queries";
 import { PageBackHeader } from "@/components/shared/page-back-header";
+import { WorkBucketBadge } from "@/components/shared/work-bucket-badge";
 import { Card, CardContent } from "@/components/ui/card";
 
 /**
@@ -60,7 +61,19 @@ export function CorretivasUnidadeView({ unitId }: { unitId: string }) {
       )
       .sort((a, b) => a.tag.localeCompare(b.tag));
 
-    return { unitName: unit?.name ?? "Unidade", items };
+    // Chamado designado a ele e ainda sem OS entra na mesma lista: para a
+    // operação, chamado e corretiva são a mesma coisa, e uma segunda caixa
+    // chamada "chamados" só fazia o técnico perguntar qual das duas é o serviço.
+    const chamados = (work?.assignedTickets ?? [])
+      .filter((t) => !t.workOrderId)
+      .map((t) => ({
+        id: t.id,
+        href: `/chamados/${t.id}`,
+        tag: t.equipmentTag ?? t.title,
+        local: t.equipmentTag ? t.title : "Chamado sem equipamento",
+      }));
+
+    return { unitName: unit?.name ?? "Unidade", items, chamados };
   }, [unitId]);
 
   if (!data) {
@@ -81,7 +94,7 @@ export function CorretivasUnidadeView({ unitId }: { unitId: string }) {
         title="Corretivas"
       />
 
-      {data.items.length === 0 ? (
+      {data.items.length === 0 && data.chamados.length === 0 ? (
         <Card>
           <CardContent className="text-muted-foreground py-8 text-center text-sm">
             Nenhuma corretiva em aberto nesta unidade. O que já foi atendido está
@@ -104,6 +117,23 @@ export function CorretivasUnidadeView({ unitId }: { unitId: string }) {
                 <p className="truncate font-medium">{item.tag}</p>
               </div>
               <ChevronRight className="text-muted-foreground size-4 shrink-0" />
+            </Link>
+          ))}
+
+          {data.chamados.map((item) => (
+            <Link
+              key={item.id}
+              href={item.href}
+              className="hover:bg-accent/50 flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="text-muted-foreground truncate text-sm">{item.local}</p>
+                <p className="truncate font-medium">{item.tag}</p>
+              </div>
+              <span className="flex shrink-0 items-center gap-2">
+                <WorkBucketBadge tone="aberto">Aguardando OS</WorkBucketBadge>
+                <ChevronRight className="text-muted-foreground size-4" />
+              </span>
             </Link>
           ))}
         </div>
