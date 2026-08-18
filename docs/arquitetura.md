@@ -21,6 +21,7 @@
 | 12 | Ajustes do teste no celular (impedimento trava até o admin liberar, concluído volta a ser editável, alvos de toque, data no selo de sync) | ✅ Concluída |
 | 13 | Segunda rodada no celular (concluídos por ambiente, impedimento tira o aparelho dos concluídos, cores por divisão, voltar direto para a unidade) | ✅ Concluída |
 | 14 | O impedimento vira tela própria (defeito, fotos, peça e laudo em vez da preventiva da sala) | ✅ Concluída |
+| 15 | Medição obrigatória para concluir + o pull passa a remover o que sumiu do servidor | ✅ Concluída |
 | — | Deploy inicial no Vercel | ✅ Concluída — `https://pmoc-plus.vercel.app`, projeto `alex-6e84/pmoc-plus` conectado ao repo GitHub (auto-deploy a cada push em `master`) |
 
 ## Contexto
@@ -620,6 +621,18 @@ A Fase 13 fez o aparelho impedido sair dos concluídos, mas tocar nele ainda lev
 - **E o aparelho impedido saiu da preventiva.** Faltava o outro lado: ele continuava na grade da sala, aceitando medição — num equipamento que o próprio técnico tinha declarado defeituoso — e aparecendo em duas divisões ao mesmo tempo. Agora ele sai da lista de equipamentos, do checklist (que passa a contar só os que sobraram) e das contas de iniciar/concluir o ambiente; no lugar fica um aviso com o selo do aparelho, que leva ao impedimento — a sala não pode perder um equipamento em silêncio.
 
 Verificado: build/lint limpos; conferido em viewport de celular com a conta de teste — a aba de impedimentos com o selo vermelho "Parado" e sem "OS fechada", o link levando à tela nova, e essa tela exibindo o chamado ("Impedimento em 2210045001", Alta, Aberto, "ar nao gela", aberto por Tecnico Teste Fase8 em 18/08/2026 às 12:27), a ficha do equipamento, as três categorias de foto, a peça (Capacitor × 1) e o laudo — nenhuma medição e nenhum checklist na página; e no ambiente, 2210045001 fora da grade, o checklist passando a "Split · 1 equipamento" e o aviso "Um equipamento saiu desta preventiva por impedimento" com o selo que leva à tela dele.
+
+### FASE 15 — Medição obrigatória e reconciliação do cache ✅ concluída
+
+Duas coisas pequenas de descrever e grandes de consequência, pedidas antes de recomeçar o teste do zero. Nenhuma migration.
+
+- **Sem medição não se conclui a preventiva.** É para produzir esses números que a preventiva existe; fechar a sala sem eles entrega um PMOC com buraco, e quem pode preencher é o técnico, que está de pé na frente do aparelho. "Concluir ambiente" fica desabilitado enquanto faltar qualquer uma das cinco em qualquer equipamento, dizendo em quais tags falta.
+- **O pull passou a remover o que sumiu do servidor.** `bulkPut` sincroniza conteúdo, não ausência — a mesma armadilha da Fase 8, agora do lado dos dados em vez do dono: medição, foto ou peça apagada no servidor continuava viva no aparelho, e o técnico via um valor que não existe mais. Apareceu de verdade ao zerar a empresa de teste: o servidor limpo, o celular ainda mostrando impedimentos e concluídos. Agora, ao fim de cada pull, as linhas locais **no escopo do que acabou de ser puxado** e que não voltaram são apagadas — **exceto** as que ainda estão pendentes no outbox, que por definição não existem no servidor e cujo apagamento perderia trabalho feito offline.
+- **O pull passou a trazer também os chamados abertos pelo próprio técnico** (`or(assigned_user_id, opened_by_user_id)`). Sem isso não havia como reconciliá-los: o impedimento que ele abre em campo não fica atribuído a ninguém até o administrador designar, então ficava fora da resposta e era impossível distinguir "sumiu do servidor" de "nunca deveria ter vindo". Foi exatamente o fantasma que sobrou depois do reset — um impedimento apagado no banco continuava classificando o equipamento como parado no aparelho.
+
+**Erro encontrado durante a própria implementação:** a primeira versão lia o outbox **dentro** da transação Dexie do pull, e `outbox` não está na lista de tabelas declarada nela. O Dexie recusa qualquer store fora do escopo declarado, então todo pull passou a morrer com `NotFoundError: The specified object store was not found` — em silêncio na tela, porque a promessa rejeitada não tinha tratamento e o cache antigo continuava servindo. Corrigido lendo a fila antes de abrir a transação, o que também deixa explícito que o pull só consulta o outbox, nunca escreve nele.
+
+Verificado: build/lint limpos; empresa de teste zerada e o aparelho reconciliado no pull seguinte — IndexedDB com `measurements`, `checklistItems`, `attachments` e `partsRequests` em zero, o chamado fantasma removido e o Início mostrando só "em aberto"; e, iniciando a preventiva de Emergencia I, "Concluir ambiente" desabilitado com "Preencha todas as medições para concluir. Falta em: 2210045001, 2210045002".
 
 ### Fora de escopo do MVP (explícito no briefing original)
 Billing/assinatura, controle de estoque, portal do cliente, QR codes, integração WhatsApp API, push notifications nativas, assinatura digital/e-signature, exportação de laudo em PDF avulso (fora do fluxo de PMOC), apps nativos (iOS/Android) — só PWA. Arquitetura deliberadamente deixa pontos de extensão (campos nullable, FKs opcionais) para que nenhum desses itens exija migração destrutiva quando for priorizado.

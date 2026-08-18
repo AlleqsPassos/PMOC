@@ -215,6 +215,18 @@ export function AmbientePreventivaView({
       gridTypes,
       checklistGroups,
       companyId: meta?.value ?? "",
+      // Equipamentos com alguma medição em branco. A preventiva existe para
+      // produzir esses números — concluir a sala sem eles entrega um PMOC com
+      // buraco, e é o técnico que está de pé na frente do aparelho.
+      semMedicao: equipments
+        .filter(({ measurements }) =>
+          gridTypes.some(
+            (type) =>
+              measurements.find((m) => m.measurementTypeId === type.id)?.valueNumeric ==
+              null,
+          ),
+        )
+        .map(({ tag }) => tag),
       impedidos: impededRecords
         .map((r) => ({ id: r.id, tag: r.equipmentTag }))
         .sort((a, b) => a.tag.localeCompare(b.tag)),
@@ -373,9 +385,15 @@ export function AmbientePreventivaView({
           )}
 
           {!finished && (
-            <div className="flex justify-end">
+            <div className="flex flex-col items-end gap-2">
+              {data.semMedicao.length > 0 && (
+                <p className="text-destructive text-right text-sm">
+                  Preencha todas as medições para concluir. Falta em:{" "}
+                  {data.semMedicao.join(", ")}.
+                </p>
+              )}
               <Button
-                disabled={isFinishing}
+                disabled={isFinishing || data.semMedicao.length > 0}
                 onClick={() =>
                   startFinishing(async () => {
                     await completeMaintenanceRecordsOffline(data.openRecordIds);

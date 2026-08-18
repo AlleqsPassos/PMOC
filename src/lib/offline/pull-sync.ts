@@ -123,7 +123,13 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
       .select(
         "id, title, description, priority, status, opened_by_user_id, opened_at, work_order_id, client_id, unit_id, equipment_id, client:clients(corporate_name), unit:units(name), equipment:equipment(tag), opened_by:users!tickets_opened_by_user_id_fkey(full_name)",
       )
-      .eq("assigned_user_id", me.id),
+      // Atribuídos a ele **ou abertos por ele**. O segundo caso entrou na Fase
+      // 15: o chamado que o técnico abre em campo não fica atribuído a ninguém
+      // até o administrador designar, então filtrar só por `assigned_user_id`
+      // devolvia uma lista da qual o próprio impedimento dele estava fora — e
+      // sem ele na resposta não há como saber se sumiu do servidor ou se nunca
+      // deveria ter vindo. Com os dois casos, a lista local é reconciliável.
+      .or(`assigned_user_id.eq.${me.id},opened_by_user_id.eq.${me.id}`),
   ]);
 
   reportPullErrors([
@@ -229,6 +235,16 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
           .in("maintenance_record_id", recordIds)
       : Promise.resolve({ data: [] as never[], error: null }),
   ]);
+
+  // Fora da transação de propósito: `outbox` não faz parte do escopo declarado
+  // abaixo, e o Dexie recusa acesso a store não declarada dentro de uma
+  // transação ("The specified object store was not found"). Ler antes também
+  // deixa claro que a fila é só consultada aqui, nunca escrita pelo pull.
+  const pendingIds = new Set(
+    (await offlineDb.outbox.toArray())
+      .filter((item) => item.status !== "synced")
+      .map((item) => item.entityId),
+  );
 
   await offlineDb.transaction(
     "rw",
@@ -445,6 +461,80 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
           unitDefault: m.unit_default,
           dataType: m.data_type,
         })),
+      );
+
+      // --- Reconciliação: o que sumiu do servidor sai do aparelho ---
+      //
+      // `bulkPut` sincroniza conteúdo, não ausência: uma medição, foto ou peça
+      // apagada no servidor continuava viva no cache, e o técnico via na tela um
+      // valor que não existe mais. É a mesma armadilha da Fase 8 (`bulkPut`
+      // mescla, nunca remove), agora do lado dos dados em vez do dono.
+      //
+      // Só apaga o que está **no escopo do que acabou de ser puxado** e o que
+      // **não está pendente no outbox** — o que foi criado offline e ainda não
+      // subiu não existe no servidor por definição, e apagá-lo perderia trabalho.
+      /** Ids locais que sumiram do servidor e não estão presos na fila. */
+      const staleIds = <T extends { id: string }>(
+        rows: T[],
+        keep: Set<string>,
+        inScope: (row: T) => boolean,
+      ) =>
+        rows
+          .filter((row) => inScope(row) && !keep.has(row.id) && !pendingIds.has(row.id))
+          .map((row) => row.id);
+
+      const pulledWorkOrderIds = new Set(workOrderIds);
+      const pulledRecordIds = new Set(recordIds);
+
+      await offlineDb.workOrders.bulkDelete(
+        staleIds(
+          await offlineDb.workOrders.toArray(),
+          pulledWorkOrderIds,
+          (w) => w.assignedUserId === me.id,
+        ),
+      );
+      await offlineDb.maintenanceRecords.bulkDelete(
+        staleIds(await offlineDb.maintenanceRecords.toArray(), pulledRecordIds, (r) =>
+          pulledWorkOrderIds.has(r.workOrderId),
+        ),
+      );
+      await offlineDb.measurements.bulkDelete(
+        staleIds(
+          await offlineDb.measurements.toArray(),
+          new Set((measurements ?? []).map((m) => m.id)),
+          (m) => pulledRecordIds.has(m.maintenanceRecordId),
+        ),
+      );
+      await offlineDb.checklistItems.bulkDelete(
+        staleIds(
+          await offlineDb.checklistItems.toArray(),
+          new Set((checklistItems ?? []).map((c) => c.id)),
+          (c) => pulledRecordIds.has(c.maintenanceRecordId),
+        ),
+      );
+      await offlineDb.partsRequests.bulkDelete(
+        staleIds(
+          await offlineDb.partsRequests.toArray(),
+          new Set((partsRequests ?? []).map((r) => r.id)),
+          (r) => pulledWorkOrderIds.has(r.workOrderId),
+        ),
+      );
+      await offlineDb.attachments.bulkDelete(
+        staleIds(
+          await offlineDb.attachments.toArray(),
+          new Set((attachments ?? []).map((a) => a.id)),
+          (a) => pulledWorkOrderIds.has(a.workOrderId),
+        ),
+      );
+      await offlineDb.tickets.bulkDelete(
+        staleIds(
+          await offlineDb.tickets.toArray(),
+          new Set((tickets ?? []).map((t) => t.id)),
+          // Todos: a consulta acima já cobre os dois caminhos pelos quais um
+          // chamado chega a este aparelho (atribuído a ele ou aberto por ele),
+          // então o que não voltou não existe mais para ele.
+          () => true,
+        ),
       );
 
       await offlineDb.meta.bulkPut([
