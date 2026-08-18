@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheck, Play, Save } from "lucide-react";
@@ -18,6 +19,11 @@ import {
   type ChecklistGroup,
 } from "@/features/maintenance/components/checklist-por-tipo";
 import { ImpedimentoDialog } from "@/features/tickets/components/impedimento-dialog";
+import {
+  TICKET_CLOSED_STATUSES,
+  type TicketStatus,
+} from "@/features/tickets/schema";
+import { WorkBucketBadge } from "@/components/shared/work-bucket-badge";
 import { PageBackHeader } from "@/components/shared/page-back-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,6 +74,8 @@ export function AmbientePreventivaView({
       templates,
       templateItems,
       meta,
+      allTickets,
+      myUserId,
     ] = await Promise.all([
       offlineDb.units.get(unitId),
       offlineDb.environments.get(environmentId),
@@ -78,7 +86,23 @@ export function AmbientePreventivaView({
       offlineDb.checklistTemplates.toArray(),
       offlineDb.checklistTemplateItems.toArray(),
       offlineDb.meta.get("companyId"),
+      offlineDb.tickets.toArray(),
+      offlineDb.meta.get("userId"),
     ]);
+
+    // Aparelhos desta sala que o técnico já parou: o botão vira link para o
+    // impedimento, porque abrir um segundo chamado para o mesmo defeito só
+    // duplica trabalho do administrador.
+    const impededEquipment = new Set(
+      allTickets
+        .filter(
+          (t) =>
+            t.equipmentId &&
+            t.openedByUserId === (myUserId?.value ?? "") &&
+            !TICKET_CLOSED_STATUSES.includes(t.status as TicketStatus),
+        )
+        .map((t) => t.equipmentId as string),
+    );
 
     // Inclui OS já fechada de propósito (Fase 11): o técnico precisa poder
     // voltar ao ambiente para conferir o que registrou — e, desde a Fase 12,
@@ -178,6 +202,7 @@ export function AmbientePreventivaView({
       gridTypes,
       checklistGroups,
       companyId: meta?.value ?? "",
+      impededEquipment,
       notStarted: records.filter((r) => !r.startedAt).map((r) => r.id),
       openRecordIds: records.filter((r) => r.status !== "completed").map((r) => r.id),
       workOrderClosed: preventivas.some(
@@ -267,13 +292,24 @@ export function AmbientePreventivaView({
                 <div key={record.id} className="flex flex-col gap-3 border-b pb-5 last:border-0 last:pb-0">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">{tag}</span>
-                    <ImpedimentoDialog
-                      companyId={data.companyId}
-                      workOrderId={record.workOrderId}
-                      maintenanceRecordId={record.id}
-                      equipmentId={record.equipmentId}
-                      equipmentTag={tag}
-                    />
+                    {data.impededEquipment.has(record.equipmentId) ? (
+                      <Link
+                        href={`/minhas-atividades/${unitId}/impedimentos/${record.id}`}
+                        className="shrink-0"
+                      >
+                        <WorkBucketBadge tone="impedimento">
+                          Impedimento aberto
+                        </WorkBucketBadge>
+                      </Link>
+                    ) : (
+                      <ImpedimentoDialog
+                        companyId={data.companyId}
+                        workOrderId={record.workOrderId}
+                        maintenanceRecordId={record.id}
+                        equipmentId={record.equipmentId}
+                        equipmentTag={tag}
+                      />
+                    )}
                   </div>
                   <MeasurementGrid
                     recordId={record.id}

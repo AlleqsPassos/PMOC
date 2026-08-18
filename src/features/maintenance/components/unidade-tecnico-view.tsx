@@ -97,13 +97,23 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
         0,
       );
 
-    /** Uma linha por equipamento — usado nos impedimentos, que são sempre pontuais. */
+    /**
+     * Uma linha por equipamento — impedimento é sempre pontual, nunca de sala.
+     *
+     * O destino é a tela do **impedimento** (defeito, fotos, peça, laudo), não a
+     * preventiva do ambiente: quando o técnico para um aparelho, ele deixou de
+     * ser um passo da rotina e virou um chamado. Corretiva mantém a tela de
+     * atendimento, que já mostra tudo isso e o bloqueio de aguardando peça.
+     */
     const impedimentos = recordsInBucket(work, "impedimento")
       .map(({ record, workOrder }) => ({
         id: record.id,
         title: record.equipmentTag,
         subtitle: locationOf(record.equipmentId).text,
-        href: `/ordens-servico/${workOrder.id}/atender/${record.id}`,
+        href:
+          workOrder.type === "preventiva"
+            ? `/minhas-atividades/${unitId}/impedimentos/${record.id}`
+            : `/ordens-servico/${workOrder.id}/atender/${record.id}`,
         workOrderOpen: workOrder.status !== "concluida" && workOrder.status !== "cancelada",
       }))
       .sort((a, b) => a.title.localeCompare(b.title));
@@ -317,8 +327,8 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
                       Equipamentos parados
                     </CardTitle>
                     <CardDescription>
-                      Aguardando peça ou com defeito aberto por você. A OS não
-                      deve ser fechada com um destes pendente.
+                      O administrador vai definir quando e quem resolve. Até lá,
+                      eles ficam pendentes aqui.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2">
@@ -425,11 +435,12 @@ function ItemRow({
         </p>
       </div>
       <span className="flex shrink-0 items-center gap-2">
-        {!item.workOrderOpen && (
-          <WorkBucketBadge tone="concluido">OS fechada</WorkBucketBadge>
-        )}
-        {tone === "impedimento" && (
+        {tone === "impedimento" ? (
           <WorkBucketBadge tone="impedimento">Parado</WorkBucketBadge>
+        ) : (
+          !item.workOrderOpen && (
+            <WorkBucketBadge tone="concluido">OS fechada</WorkBucketBadge>
+          )
         )}
         {showView && (
           <span className="text-muted-foreground inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs">

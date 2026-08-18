@@ -62,6 +62,18 @@ export const CORRECTIVE_ATTACHMENT_CATEGORIES: AttachmentCategory[] = [
   "outro",
 ];
 
+/**
+ * Categorias da tela de impedimento (Fase 14) — o que descreve um aparelho
+ * parado. Sem equipamento/etiqueta obrigatórias: essas provam o atendimento no
+ * PMOC, e um impedimento não é um atendimento concluído; exigi-las aqui só
+ * atrapalharia quem está registrando um defeito.
+ */
+export const IMPEDIMENT_ATTACHMENT_CATEGORIES: AttachmentCategory[] = [
+  "problema",
+  "problema_resolvido",
+  "outro",
+];
+
 export function maxAttachmentsFor(category: AttachmentCategory): number {
   return ATTACHMENT_CATEGORY_RULES[category].max;
 }

@@ -20,6 +20,7 @@
 | 11 | O celular do técnico (divisão em aberto/impedimentos/concluídos, foto obrigatória travando, peça por diálogo, navegação mobile) | ✅ Concluída |
 | 12 | Ajustes do teste no celular (impedimento trava até o admin liberar, concluído volta a ser editável, alvos de toque, data no selo de sync) | ✅ Concluída |
 | 13 | Segunda rodada no celular (concluídos por ambiente, impedimento tira o aparelho dos concluídos, cores por divisão, voltar direto para a unidade) | ✅ Concluída |
+| 14 | O impedimento vira tela própria (defeito, fotos, peça e laudo em vez da preventiva da sala) | ✅ Concluída |
 | — | Deploy inicial no Vercel | ✅ Concluída — `https://pmoc-plus.vercel.app`, projeto `alex-6e84/pmoc-plus` conectado ao repo GitHub (auto-deploy a cada push em `master`) |
 
 ## Contexto
@@ -605,6 +606,18 @@ Mais uma lista curta do usuário testando no aparelho, no mesmo dia da Fase 12. 
 - **Início** — "Chamados e ordens de serviço atribuídos a você **hoje**".
 
 Verificado: build/lint limpos; conferido em viewport de celular com a conta de teste — Início mostrando "1 impedimento / 3 concluídos" em Hospital de Base 02 (o aparelho com impedimento saiu dos concluídos, que era o ponto), a aba Concluídos listando três ambientes em vez de quatro aparelhos, cada um com "Visualizar" e o selo verde "OS fechada", a aba Impedimentos com o aparelho em vermelho "Parado", as cores conferidas por `getComputedStyle`, e o ambiente abrindo com "Abrir impedimento", botão de voltar apontando para a unidade e "Salvar alterações" surgindo depois de editar uma medição.
+
+### FASE 14 — O impedimento vira tela própria ✅ concluída
+
+A Fase 13 fez o aparelho impedido sair dos concluídos, mas tocar nele ainda levava para a **preventiva do ambiente** — a sala inteira, com grade de medições, checklist, e o aparelho defeituoso listado ao lado de outro já concluído. O usuário apontou o erro pelo que ele é: um impedimento **não é um passo da preventiva, é um chamado**. Nenhuma migration.
+
+- **Rota nova** `/minhas-atividades/[unitId]/impedimentos/[maintenanceRecordId]` (`ImpedimentoDetalheView`): o defeito relatado, com prioridade, situação, quem abriu e quando; a ficha do equipamento; as fotos do problema; as peças solicitadas; e o laudo. **Sem medição, sem checklist e sem botão de concluir** — quem decide o que será feito, quando e por quem é o administrador; o técnico documenta. Corretiva continua na tela de atendimento, que já mostra tudo isso e o bloqueio de aguardando peça (Fase 12).
+- **"OS fechada" saiu da aba de impedimentos.** O selo era falso ali: o serviço daquele aparelho não terminou — o que fechou foi a ordem de serviço da rotina. Na aba de concluídos ele continua, porque lá é verdade.
+- **A frase da aba foi trocada.** "A OS não deve ser fechada com um destes pendente" era conselho fora de hora (a OS já estava fechada) e não descrevia o que acontece: agora diz "O administrador vai definir quando e quem resolve. Até lá, eles ficam pendentes aqui."
+- **"Abrir impedimento" some quando já existe um.** No ambiente, o aparelho com chamado aberto pelo próprio técnico mostra o selo vermelho **Impedimento aberto**, que leva à tela nova. Abrir um segundo chamado para o mesmo defeito só duplicaria trabalho do administrador.
+- `IMPEDIMENT_ATTACHMENT_CATEGORIES` (problema, problema resolvido, outros) — sem equipamento/etiqueta obrigatórias: essas duas provam um **atendimento** no PMOC, e um impedimento não é um atendimento concluído; exigi-las aqui atrapalharia justamente quem está registrando um defeito.
+
+Verificado: build/lint limpos; conferido em viewport de celular com a conta de teste — a aba de impedimentos com o selo vermelho "Parado" e sem "OS fechada", o link levando à tela nova, e essa tela exibindo o chamado ("Impedimento em 2210045001", Alta, Aberto, "ar nao gela", aberto por Tecnico Teste Fase8 em 18/08/2026 às 12:27), a ficha do equipamento, as três categorias de foto, a peça (Capacitor × 1) e o laudo — nenhuma medição e nenhum checklist na página; e no ambiente, 2210045001 exibindo "Impedimento aberto" enquanto 2210045002 mantém o botão "Abrir impedimento".
 
 ### Fora de escopo do MVP (explícito no briefing original)
 Billing/assinatura, controle de estoque, portal do cliente, QR codes, integração WhatsApp API, push notifications nativas, assinatura digital/e-signature, exportação de laudo em PDF avulso (fora do fluxo de PMOC), apps nativos (iOS/Android) — só PWA. Arquitetura deliberadamente deixa pontos de extensão (campos nullable, FKs opcionais) para que nenhum desses itens exija migração destrutiva quando for priorizado.
