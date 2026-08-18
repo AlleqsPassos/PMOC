@@ -35,6 +35,13 @@ export type OfflineWorkOrder = {
   finishedAt: string | null;
   originTicketId: string | null;
   createdAt: string;
+  /**
+   * Quem abriu a ordem de serviço (Fase 11). A tela da corretiva dizia
+   * "foi aberta direto pelo administrador" — verdadeiro mas anônimo; quem
+   * está no aparelho quer saber **de quem** cobrar contexto, e a OS pode ter
+   * nascido tanto do despachante quanto de outro técnico em campo.
+   */
+  createdByName: string | null;
 };
 
 export type OfflineMaintenanceRecord = {
@@ -124,6 +131,8 @@ export type OfflineTicket = {
   equipmentId: string | null;
   equipmentTag: string | null;
   openedByUserId: string;
+  /** Nome de quem abriu — ver `OfflineWorkOrder.createdByName` (Fase 11). */
+  openedByName: string | null;
   openedAt: string;
   workOrderId: string | null;
 };

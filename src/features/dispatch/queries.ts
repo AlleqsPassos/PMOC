@@ -47,6 +47,13 @@ export type DispatchItem = {
   workOrderType?: WorkOrderType;
   workOrderStatus?: WorkOrderStatus;
   equipmentCount?: number;
+  /**
+   * Quantos equipamentos desta OS o técnico fechou como "aguardando peça"
+   * (Fase 11). É o que responde, na própria fila, por que uma OS com todo o
+   * serviço feito não foi concluída — antes o administrador só descobria isso
+   * abrindo a OS, e o técnico não tinha como avisar.
+   */
+  waitingPartsCount?: number;
 };
 
 const PRIORITY_RANK: Record<TicketPriority, number> = {
@@ -76,14 +83,40 @@ async function findPreventivePlansWithWorkOrder(): Promise<Set<string>> {
   );
 }
 
+/**
+ * Quantos equipamentos por OS ficaram aguardando peça. Um `select` só, agregado
+ * em memória — mesmo critério das três listas acima (revisão de queries da Fase
+ * 7.3): é a escala de um hospital, e a alternativa seria uma view nova para
+ * economizar uma contagem sobre poucas centenas de linhas.
+ */
+async function countWaitingPartsByWorkOrder(): Promise<Map<string, number>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("maintenance_records")
+    .select("work_order_id")
+    .eq("resolution", "aguardando_peca");
+
+  if (error) {
+    console.error("[countWaitingPartsByWorkOrder]", error.message);
+    return new Map();
+  }
+
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    counts.set(row.work_order_id, (counts.get(row.work_order_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export async function listDispatchQueue(): Promise<DispatchItem[]> {
   const today = getTodayDateString();
 
-  const [tickets, workOrders, plans, plansWithWorkOrder] = await Promise.all([
+  const [tickets, workOrders, plans, plansWithWorkOrder, waitingParts] = await Promise.all([
     listTickets(),
     listWorkOrders(),
     listPreventivePlans(),
     findPreventivePlansWithWorkOrder(),
+    countWaitingPartsByWorkOrder(),
   ]);
 
   const items: DispatchItem[] = [];
@@ -113,6 +146,7 @@ export async function listDispatchQueue(): Promise<DispatchItem[]> {
     // Comparação de string YYYY-MM-DD contra YYYY-MM-DD, sem instanciar Date —
     // mesma precaução de fuso documentada em src/lib/format-date.ts.
     const isOverdue = Boolean(wo.scheduledDate && wo.scheduledDate < today);
+    const waiting = waitingParts.get(wo.id) ?? 0;
     items.push({
       id: wo.id,
       kind: "work_order",
@@ -123,10 +157,13 @@ export async function listDispatchQueue(): Promise<DispatchItem[]> {
       date: wo.scheduledDate ?? toLocalDateString(wo.createdAt),
       assignedUserId: wo.assignedUserId,
       assignedName: wo.assignedName,
-      rank: isOverdue ? 1 : 4,
+      // OS travada por falta de peça sobe junto com as atrasadas: é uma
+      // pendência do administrador, não do técnico — ele já fez o que podia.
+      rank: waiting > 0 ? 1 : isOverdue ? 1 : 4,
       isOverdue,
       workOrderType: wo.type,
       workOrderStatus: wo.status,
+      waitingPartsCount: waiting > 0 ? waiting : undefined,
     });
   }
 

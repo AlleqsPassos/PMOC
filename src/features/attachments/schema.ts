@@ -28,10 +28,11 @@ export const ATTACHMENT_CATEGORY_LABELS: Record<AttachmentCategory, string> = {
  * vêm da especificação do fluxo de corretiva (Fase 10). Antes era uma constante
  * única de 2 para tudo.
  *
- * `required` **avisa, não bloqueia**: decisão explícita do usuário. Faltar foto
- * marca o atendimento como incompleto e aparece na tela do administrador; não
- * trava o técnico em campo, onde câmera falhando ou aparelho em local sem
- * acesso são situações reais.
+ * `required` **bloqueia** desde a Fase 11: sem a foto do equipamento e a da
+ * etiqueta o técnico não conclui nem solicita peça. A Fase 10 tinha escolhido só
+ * avisar, para não prender ninguém em campo por uma câmera que não abriu — o
+ * usuário reverteu depois de usar a tela: o aviso era ignorado, e são essas duas
+ * fotos que provam no PMOC que o aparelho certo foi atendido.
  */
 export const ATTACHMENT_CATEGORY_RULES: Record<
   AttachmentCategory,

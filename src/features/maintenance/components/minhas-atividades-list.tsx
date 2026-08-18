@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarClock, ChevronRight, FileCheck2, Headset, Wrench } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronRight,
+  FileCheck2,
+  ListChecks,
+  TriangleAlert,
+} from "lucide-react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
 import {
-  loadOpenWorkByUnit,
-  pendingCount,
+  bucketCounts,
+  loadWorkByUnit,
   readyToClose,
 } from "@/features/maintenance/offline-queries";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +29,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * A Fase 9 listava as tarefas dentro do cartão da unidade; o usuário pediu para
  * tirar, pensando em quantas unidades o sistema vai ter: o técnico escolhe onde
  * está e só então vê o trabalho.
+ *
+ * Fase 11 — o resumo passou a ser o das três divisões (em aberto, impedimento,
+ * concluído) e a unidade **continua listada depois de tudo concluído**. Antes
+ * ela desaparecia junto com a última OS fechada, e com ela o único caminho que o
+ * técnico tinha para rever ou corrigir o próprio registro.
  */
 export function MinhasAtividadesList({
   canViewTickets,
@@ -33,7 +44,7 @@ export function MinhasAtividadesList({
 }) {
   const units = useLiveQuery(async () => {
     const [byUnit, units] = await Promise.all([
-      loadOpenWorkByUnit(),
+      loadWorkByUnit(),
       offlineDb.units.toArray(),
     ]);
     const unitById = new Map(units.map((u) => [u.id, u]));
@@ -44,32 +55,30 @@ export function MinhasAtividadesList({
         // unidade que só tem chamado atribuído não tem OS de onde tirar o nome.
         const unit = unitById.get(unitId);
         const anyWorkOrder = work.workOrders[0];
+        const counts = bucketCounts(work);
 
-        let preventivas = 0;
-        let corretivas = 0;
-        let prontasParaFechar = 0;
-
-        if (canViewWorkOrders) {
-          for (const workOrder of work.workOrders) {
-            const records = work.recordsByWorkOrder.get(workOrder.id) ?? [];
-            const pending = pendingCount(records);
-            if (workOrder.type === "preventiva") preventivas += pending;
-            else corretivas += pending;
-            if (readyToClose(records)) prontasParaFechar += 1;
-          }
-        }
+        const prontasParaFechar = canViewWorkOrders
+          ? work.openWorkOrders.filter((w) =>
+              readyToClose(work.recordsByWorkOrder.get(w.id) ?? []),
+            ).length
+          : 0;
 
         return {
           unitId,
           unitName: unit?.name ?? anyWorkOrder?.unitName ?? "Unidade",
           clientName: unit?.clientName ?? anyWorkOrder?.clientName ?? "",
-          preventivas,
-          corretivas,
-          chamados: canViewTickets ? work.openTicketCount : 0,
+          aberto: canViewWorkOrders ? counts.aberto : 0,
+          impedimento: canViewTickets ? counts.impedimento : 0,
+          concluido: canViewWorkOrders ? counts.concluido : 0,
           prontasParaFechar,
         };
       })
-      .sort((a, b) => a.unitName.localeCompare(b.unitName));
+      // Unidade com trabalho a fazer primeiro; a que só tem histórico desce.
+      .sort(
+        (a, b) =>
+          Number(b.aberto > 0) - Number(a.aberto > 0) ||
+          a.unitName.localeCompare(b.unitName),
+      );
   }, [canViewTickets, canViewWorkOrders]);
 
   // useLiveQuery retorna undefined até a primeira leitura do IndexedDB resolver.
@@ -111,22 +120,23 @@ export function MinhasAtividadesList({
               </div>
             </CardHeader>
             <CardContent className="flex flex-wrap items-center gap-2">
-              {unit.preventivas > 0 && (
+              {unit.aberto > 0 && (
                 <Badge variant="outline" className="gap-1">
-                  <CalendarClock className="size-3" />
-                  {unit.preventivas} em preventiva
+                  <ListChecks className="size-3" />
+                  {unit.aberto} em aberto
                 </Badge>
               )}
-              {unit.corretivas > 0 && (
-                <Badge variant="outline" className="gap-1">
-                  <Wrench className="size-3" />
-                  {unit.corretivas} em corretiva
+              {unit.impedimento > 0 && (
+                <Badge variant="destructive" className="gap-1">
+                  <TriangleAlert className="size-3" />
+                  {unit.impedimento} impedimento
+                  {unit.impedimento > 1 ? "s" : ""}
                 </Badge>
               )}
-              {unit.chamados > 0 && (
-                <Badge variant="outline" className="gap-1">
-                  <Headset className="size-3" />
-                  {unit.chamados} chamado{unit.chamados > 1 ? "s" : ""}
+              {unit.concluido > 0 && (
+                <Badge variant="secondary" className="gap-1">
+                  <CheckCircle2 className="size-3" />
+                  {unit.concluido} concluído{unit.concluido > 1 ? "s" : ""}
                 </Badge>
               )}
               {unit.prontasParaFechar > 0 && (
@@ -136,9 +146,9 @@ export function MinhasAtividadesList({
                   {unit.prontasParaFechar > 1 ? "s" : ""} para fechar
                 </Badge>
               )}
-              {unit.preventivas === 0 &&
-                unit.corretivas === 0 &&
-                unit.chamados === 0 &&
+              {unit.aberto === 0 &&
+                unit.impedimento === 0 &&
+                unit.concluido === 0 &&
                 unit.prontasParaFechar === 0 && (
                   <span className="text-muted-foreground text-sm">
                     Serviço em andamento nesta unidade.

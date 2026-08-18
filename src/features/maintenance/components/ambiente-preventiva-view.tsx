@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheck, Play } from "lucide-react";
@@ -18,6 +17,7 @@ import {
   type ChecklistGroup,
 } from "@/features/maintenance/components/checklist-por-tipo";
 import { ImpedimentoDialog } from "@/features/tickets/components/impedimento-dialog";
+import { PageBackHeader } from "@/components/shared/page-back-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,13 +74,15 @@ export function AmbientePreventivaView({
       offlineDb.meta.get("companyId"),
     ]);
 
-    const preventivaIds = new Set(
-      workOrders
-        .filter(
-          (w) =>
-            w.type === "preventiva" && w.status !== "concluida" && w.status !== "cancelada",
-        )
-        .map((w) => w.id),
+    // Inclui OS já fechada de propósito (Fase 11): o técnico precisa poder
+    // voltar ao ambiente para conferir o que registrou. Fechada, a tela abre em
+    // modo leitura — quem reabre é o administrador.
+    const preventivas = workOrders.filter(
+      (w) => w.type === "preventiva" && w.status !== "cancelada",
+    );
+    const preventivaIds = new Set(preventivas.map((w) => w.id));
+    const closedWorkOrderIds = new Set(
+      preventivas.filter((w) => w.status === "concluida").map((w) => w.id),
     );
     const equipmentById = new Map(equipment.map((e) => [e.id, e]));
 
@@ -174,6 +176,7 @@ export function AmbientePreventivaView({
       companyId: meta?.value ?? "",
       notStarted: records.filter((r) => !r.startedAt).map((r) => r.id),
       openRecordIds: records.filter((r) => r.status !== "completed").map((r) => r.id),
+      readOnly: records.every((r) => closedWorkOrderIds.has(r.workOrderId)),
     };
   }, [unitId, environmentId]);
 
@@ -200,27 +203,23 @@ export function AmbientePreventivaView({
 
   const started = data.notStarted.length === 0;
   const finished = data.openRecordIds.length === 0;
+  // Enquanto a OS estiver aberta, medição e checklist continuam editáveis mesmo
+  // depois de concluído — foi o pedido do usuário: concluir não pode ser um
+  // caminho sem volta se ele digitou um número errado. Fechada a OS, vira
+  // leitura.
+  const readOnly = data.readOnly;
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-muted-foreground text-sm">
-          <Link href={`/minhas-atividades/${unitId}`} className="hover:underline">
-            {data.unitName}
-          </Link>{" "}
-          /{" "}
-          <Link
-            href={`/minhas-atividades/${unitId}/preventivas`}
-            className="hover:underline"
-          >
-            Preventivas
-          </Link>
-        </p>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {data.environmentName}
-          </h1>
-          {finished ? (
+      <PageBackHeader
+        backHref={`/minhas-atividades/${unitId}/preventivas`}
+        backLabel="Preventivas"
+        title={data.environmentName}
+        subtitle={data.unitName}
+        actions={
+          readOnly ? (
+            <Badge variant="outline">OS fechada</Badge>
+          ) : finished ? (
             <Badge variant="secondary">Ambiente concluído</Badge>
           ) : (
             !started && (
@@ -234,9 +233,9 @@ export function AmbientePreventivaView({
                 {isStarting ? "Iniciando…" : "Iniciar atividade"}
               </Button>
             )
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {!started && !finished ? (
         <Card>
@@ -252,8 +251,9 @@ export function AmbientePreventivaView({
             <CardHeader>
               <CardTitle className="text-base">Equipamentos</CardTitle>
               <CardDescription>
-                Preencha as medições de cada aparelho. Encontrou defeito? Abra o
-                impedimento ali mesmo.
+                {readOnly
+                  ? "A ordem de serviço foi fechada — este é o registro do que foi medido."
+                  : "Preencha as medições de cada aparelho. Encontrou defeito? Abra o impedimento ali mesmo."}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
@@ -261,26 +261,28 @@ export function AmbientePreventivaView({
                 <div key={record.id} className="flex flex-col gap-3 border-b pb-5 last:border-0 last:pb-0">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">{tag}</span>
-                    <ImpedimentoDialog
-                      companyId={data.companyId}
-                      workOrderId={record.workOrderId}
-                      maintenanceRecordId={record.id}
-                      equipmentId={record.equipmentId}
-                      equipmentTag={tag}
-                    />
+                    {!readOnly && (
+                      <ImpedimentoDialog
+                        companyId={data.companyId}
+                        workOrderId={record.workOrderId}
+                        maintenanceRecordId={record.id}
+                        equipmentId={record.equipmentId}
+                        equipmentTag={tag}
+                      />
+                    )}
                   </div>
                   <MeasurementGrid
                     recordId={record.id}
                     types={data.gridTypes}
                     measurements={measurements}
-                    disabled={finished}
+                    disabled={readOnly}
                   />
                 </div>
               ))}
             </CardContent>
           </Card>
 
-          <ChecklistPorTipo groups={data.checklistGroups} disabled={finished} />
+          <ChecklistPorTipo groups={data.checklistGroups} disabled={readOnly} />
 
           {!finished && (
             <div className="flex justify-end">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, ClipboardList, Headset } from "lucide-react";
+import { AlertTriangle, CalendarClock, ClipboardList, Headset, Package } from "lucide-react";
 import { listDispatchQueue, type DispatchItem } from "@/features/dispatch/queries";
 import { listCompanyUsers } from "@/features/users/queries";
 import { TicketAssignSelect } from "@/features/tickets/components/ticket-assign-select";
@@ -120,6 +120,12 @@ function Row({
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="size-3" />
                   Atrasada
+                </Badge>
+              )}
+              {item.waitingPartsCount !== undefined && (
+                <Badge variant="destructive" className="gap-1">
+                  <Package className="size-3" />
+                  {item.waitingPartsCount} aguardando peça
                 </Badge>
               )}
             </div>

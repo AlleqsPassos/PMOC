@@ -40,6 +40,7 @@ export function AttachmentUploader({
   equipmentId,
   category,
   existing,
+  readOnly,
 }: {
   companyId: string;
   workOrderId: string;
@@ -47,6 +48,8 @@ export function AttachmentUploader({
   equipmentId: string;
   category: AttachmentCategory;
   existing: OfflineAttachment[];
+  /** OS fechada — as fotos continuam visíveis, mas o registro não muda mais. */
+  readOnly?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [previews, setPreviews] = useState<Record<string, string>>({});
@@ -135,7 +138,8 @@ export function AttachmentUploader({
               </div>
               <button
                 type="button"
-                disabled={isPending}
+                disabled={isPending || readOnly}
+                hidden={readOnly}
                 onClick={() => handleRemove(a.id)}
                 aria-label={`Remover foto de ${ATTACHMENT_CATEGORY_LABELS[category]}`}
                 className="bg-background text-muted-foreground hover:text-destructive absolute -top-1.5 -right-1.5 rounded-full border p-0.5 shadow-sm"
@@ -168,7 +172,7 @@ export function AttachmentUploader({
           }}
         />
 
-        {!atLimit && (
+        {!atLimit && !readOnly && (
           <DropdownMenu>
             <DropdownMenuTrigger
               disabled={isPending}
@@ -207,6 +211,7 @@ export function AttachmentUploaderGroup({
   equipmentId,
   categories,
   attachments,
+  readOnly,
 }: {
   companyId: string;
   workOrderId: string;
@@ -214,6 +219,7 @@ export function AttachmentUploaderGroup({
   equipmentId: string;
   categories: AttachmentCategory[];
   attachments: OfflineAttachment[];
+  readOnly?: boolean;
 }) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -226,6 +232,7 @@ export function AttachmentUploaderGroup({
           equipmentId={equipmentId}
           category={category}
           existing={attachments.filter((a) => a.category === category)}
+          readOnly={readOnly}
         />
       ))}
     </div>

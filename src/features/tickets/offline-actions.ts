@@ -25,9 +25,10 @@ export async function createTicketFromEquipmentOffline(params: {
     return { error: "Equipamento não encontrado localmente. Conecte-se e tente novamente." };
   }
 
-  const [company, user] = await Promise.all([
+  const [company, user, fullName] = await Promise.all([
     offlineDb.meta.get("companyId"),
     offlineDb.meta.get("userId"),
+    offlineDb.meta.get("userFullName"),
   ]);
   const companyId = company?.value ?? "";
   const userId = user?.value ?? "";
@@ -48,6 +49,9 @@ export async function createTicketFromEquipmentOffline(params: {
     equipmentId: equipment.id,
     equipmentTag: equipment.tag,
     openedByUserId: userId,
+    // Nome do próprio técnico, do meta local: o chamado aberto em campo precisa
+    // dizer quem o abriu já na tela, sem esperar o pull seguinte.
+    openedByName: fullName?.value ?? null,
     openedAt,
     workOrderId: null,
   });

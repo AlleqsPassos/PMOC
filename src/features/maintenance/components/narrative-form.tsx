@@ -15,7 +15,13 @@ import type { OfflineMaintenanceRecord } from "@/lib/offline/db";
  * e `updateMaintenanceNarrativeOffline` grava só o que recebe, justamente para
  * não zerá-las em registro antigo.
  */
-export function NarrativeForm({ record }: { record: OfflineMaintenanceRecord }) {
+export function NarrativeForm({
+  record,
+  disabled,
+}: {
+  record: OfflineMaintenanceRecord;
+  disabled?: boolean;
+}) {
   const [isSaving, startSaving] = useTransition();
   const [saved, setSaved] = useState(false);
   const [fields, setFields] = useState({
@@ -40,6 +46,7 @@ export function NarrativeForm({ record }: { record: OfflineMaintenanceRecord }) 
   function field(name: keyof typeof fields) {
     return {
       value: fields[name],
+      disabled,
       onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setSaved(false);
         setFields((f) => ({ ...f, [name]: e.target.value }));
@@ -64,11 +71,13 @@ export function NarrativeForm({ record }: { record: OfflineMaintenanceRecord }) 
 
       {saved && <p className="text-sm text-emerald-600">Laudo salvo.</p>}
 
-      <div>
-        <Button type="submit" variant="outline" disabled={isSaving}>
-          {isSaving ? "Salvando…" : "Salvar laudo"}
-        </Button>
-      </div>
+      {!disabled && (
+        <div>
+          <Button type="submit" variant="outline" disabled={isSaving}>
+            {isSaving ? "Salvando…" : "Salvar laudo"}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

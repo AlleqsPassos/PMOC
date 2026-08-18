@@ -1,6 +1,11 @@
 "use client";
 
-import { offlineDb, type OfflineMaintenanceRecord, type OfflineWorkOrder } from "@/lib/offline/db";
+import {
+  offlineDb,
+  type OfflineMaintenanceRecord,
+  type OfflineTicket,
+  type OfflineWorkOrder,
+} from "@/lib/offline/db";
 import { TICKET_CLOSED_STATUSES, type TicketStatus } from "@/features/tickets/schema";
 
 /**
@@ -12,8 +17,10 @@ import { TICKET_CLOSED_STATUSES, type TicketStatus } from "@/features/tickets/sc
  * na Fase 9, quando o Início filtrava por registro pendente e o Dashboard por OS
  * aberta: as duas telas discordavam e havia trabalho inalcançável.
  *
- * Regra única, aqui: **o que define trabalho pendente é a OS estar em aberto.**
- * Registro concluído dentro de OS aberta continua aparecendo, marcado.
+ * Fase 11 — o carregador passou a trazer **também o trabalho fechado**. Antes o
+ * técnico perdia o caminho de volta assim que a OS era concluída: a unidade
+ * sumia do Início e não havia como rever (ou corrigir) o que ele mesmo tinha
+ * acabado de registrar.
  */
 
 export const OPEN_WORK_ORDER_STATUSES = ["aberta", "em_andamento"] as const;
@@ -22,22 +29,48 @@ export function isWorkOrderOpen(workOrder: OfflineWorkOrder): boolean {
   return workOrder.status !== "concluida" && workOrder.status !== "cancelada";
 }
 
+/**
+ * Em qual das três divisões da unidade o atendimento cai (Fase 11).
+ *
+ * "Aguardando peça" é **impedimento**, não trabalho em aberto nem concluído: o
+ * técnico terminou a parte dele mas o equipamento não voltou a funcionar. Era o
+ * ponto que o usuário flagrou — a corretiva com peça pedida continuava contando
+ * como pendência no Início, como se ele ainda tivesse o que fazer ali.
+ */
+export type WorkBucket = "aberto" | "impedimento" | "concluido";
+
+export function bucketOfRecord(record: OfflineMaintenanceRecord): WorkBucket {
+  if (record.status !== "completed") return "aberto";
+  return record.resolution === "aguardando_peca" ? "impedimento" : "concluido";
+}
+
 export type UnitWork = {
+  /** Todas as OS do técnico nesta unidade — abertas **e** fechadas. */
   workOrders: OfflineWorkOrder[];
+  openWorkOrders: OfflineWorkOrder[];
   recordsByWorkOrder: Map<string, OfflineMaintenanceRecord[]>;
-  openTicketCount: number;
+  /** Chamados atribuídos a ele por outra pessoa, ainda sem OS: trabalho a fazer. */
+  assignedTickets: OfflineTicket[];
+  /**
+   * Chamados que ele mesmo abriu (impedimento na preventiva ou chamado ad-hoc a
+   * partir do equipamento) — são defeitos que ele encontrou e não pôde resolver
+   * na hora, então pertencem à divisão de impedimentos, não à de trabalho a
+   * fazer. A distinção é por autoria, não por texto do título.
+   */
+  raisedTickets: OfflineTicket[];
 };
 
-/** OS em aberto do técnico, com os registros de cada uma, agrupadas por unidade. */
-export async function loadOpenWorkByUnit(): Promise<Map<string, UnitWork>> {
-  const [allWorkOrders, records, tickets] = await Promise.all([
+/** Todo o trabalho do técnico agrupado por unidade — aberto, impedido e concluído. */
+export async function loadWorkByUnit(): Promise<Map<string, UnitWork>> {
+  const [workOrders, records, tickets, me] = await Promise.all([
     offlineDb.workOrders.toArray(),
     offlineDb.maintenanceRecords.toArray(),
     offlineDb.tickets.toArray(),
+    offlineDb.meta.get("userId"),
   ]);
 
-  const workOrders = allWorkOrders.filter(isWorkOrderOpen);
-  const openWorkOrderById = new Map(workOrders.map((w) => [w.id, w]));
+  const myUserId = me?.value ?? "";
+  const workOrderById = new Map(workOrders.map((w) => [w.id, w]));
 
   const byUnit = new Map<string, UnitWork>();
   const ensure = (unitId: string) => {
@@ -45,8 +78,10 @@ export async function loadOpenWorkByUnit(): Promise<Map<string, UnitWork>> {
     if (existing) return existing;
     const created: UnitWork = {
       workOrders: [],
+      openWorkOrders: [],
       recordsByWorkOrder: new Map(),
-      openTicketCount: 0,
+      assignedTickets: [],
+      raisedTickets: [],
     };
     byUnit.set(unitId, created);
     return created;
@@ -55,21 +90,51 @@ export async function loadOpenWorkByUnit(): Promise<Map<string, UnitWork>> {
   for (const workOrder of workOrders) {
     const unit = ensure(workOrder.unitId);
     unit.workOrders.push(workOrder);
+    if (isWorkOrderOpen(workOrder)) unit.openWorkOrders.push(workOrder);
     unit.recordsByWorkOrder.set(workOrder.id, []);
   }
 
   for (const record of records) {
-    const workOrder = openWorkOrderById.get(record.workOrderId);
+    const workOrder = workOrderById.get(record.workOrderId);
     if (!workOrder) continue;
     byUnit.get(workOrder.unitId)?.recordsByWorkOrder.get(workOrder.id)?.push(record);
   }
 
   for (const ticket of tickets) {
     if (TICKET_CLOSED_STATUSES.includes(ticket.status as TicketStatus)) continue;
-    ensure(ticket.unitId).openTicketCount += 1;
+    const unit = ensure(ticket.unitId);
+    if (ticket.openedByUserId === myUserId) unit.raisedTickets.push(ticket);
+    else unit.assignedTickets.push(ticket);
   }
 
   return byUnit;
+}
+
+/** Registros da unidade em uma divisão, com a OS de cada um junto. */
+export function recordsInBucket(
+  work: UnitWork,
+  bucket: WorkBucket,
+): { record: OfflineMaintenanceRecord; workOrder: OfflineWorkOrder }[] {
+  const result: { record: OfflineMaintenanceRecord; workOrder: OfflineWorkOrder }[] = [];
+  for (const workOrder of work.workOrders) {
+    // Trabalho "em aberto" só existe dentro de OS em aberto: numa OS fechada,
+    // um registro que ficou em rascunho é histórico, não tarefa pendente.
+    if (bucket === "aberto" && !isWorkOrderOpen(workOrder)) continue;
+    for (const record of work.recordsByWorkOrder.get(workOrder.id) ?? []) {
+      if (bucketOfRecord(record) === bucket) result.push({ record, workOrder });
+    }
+  }
+  return result;
+}
+
+export type BucketCounts = Record<WorkBucket, number>;
+
+export function bucketCounts(work: UnitWork): BucketCounts {
+  return {
+    aberto: recordsInBucket(work, "aberto").length + work.assignedTickets.length,
+    impedimento: recordsInBucket(work, "impedimento").length + work.raisedTickets.length,
+    concluido: recordsInBucket(work, "concluido").length,
+  };
 }
 
 /** Quantos registros ainda não foram concluídos, entre os informados. */

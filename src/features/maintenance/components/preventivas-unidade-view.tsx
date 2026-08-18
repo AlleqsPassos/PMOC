@@ -4,7 +4,8 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
-import { loadOpenWorkByUnit } from "@/features/maintenance/offline-queries";
+import { loadWorkByUnit } from "@/features/maintenance/offline-queries";
+import { PageBackHeader } from "@/components/shared/page-back-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -23,7 +24,7 @@ const SEM_SETOR = "__sem_setor__";
 export function PreventivasUnidadeView({ unitId }: { unitId: string }) {
   const data = useLiveQuery(async () => {
     const [byUnit, unit, equipment, environments, sectors] = await Promise.all([
-      loadOpenWorkByUnit(),
+      loadWorkByUnit(),
       offlineDb.units.get(unitId),
       offlineDb.equipment.where("unitId").equals(unitId).toArray(),
       offlineDb.environments.where("unitId").equals(unitId).toArray(),
@@ -40,7 +41,7 @@ export function PreventivasUnidadeView({ unitId }: { unitId: string }) {
       { environmentId: string; name: string; sectorId: string | null; total: number; pending: number }
     >();
 
-    for (const workOrder of work?.workOrders ?? []) {
+    for (const workOrder of work?.openWorkOrders ?? []) {
       if (workOrder.type !== "preventiva") continue;
       for (const record of work?.recordsByWorkOrder.get(workOrder.id) ?? []) {
         const eq = equipmentById.get(record.equipmentId);
@@ -97,18 +98,11 @@ export function PreventivasUnidadeView({ unitId }: { unitId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-muted-foreground text-sm">
-          <Link href="/minhas-atividades" className="hover:underline">
-            Início
-          </Link>{" "}
-          /{" "}
-          <Link href={`/minhas-atividades/${unitId}`} className="hover:underline">
-            {data.unitName}
-          </Link>
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight">Preventivas</h1>
-      </div>
+      <PageBackHeader
+        backHref={`/minhas-atividades/${unitId}`}
+        backLabel={data.unitName}
+        title="Preventivas"
+      />
 
       {data.isEmpty ? (
         <Card>

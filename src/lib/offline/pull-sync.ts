@@ -101,7 +101,10 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
     supabase
       .from("work_orders")
       .select(
-        "id, title, type, status, scheduled_date, started_at, finished_at, created_at, origin_ticket_id, client_id, unit_id, assigned_user_id, client:clients(corporate_name), unit:units(name)",
+        // `users!work_orders_created_by_fkey` explícito: work_orders tem duas
+        // FKs para users (created_by e assigned_user_id) e o PostgREST não
+        // adivinha qual delas o embed quer.
+        "id, title, type, status, scheduled_date, started_at, finished_at, created_at, origin_ticket_id, client_id, unit_id, assigned_user_id, client:clients(corporate_name), unit:units(name), created_by_user:users!work_orders_created_by_fkey(full_name)",
       )
       .eq("assigned_user_id", me.id),
     supabase
@@ -118,7 +121,7 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
     supabase
       .from("tickets")
       .select(
-        "id, title, description, priority, status, opened_by_user_id, opened_at, work_order_id, client_id, unit_id, equipment_id, client:clients(corporate_name), unit:units(name), equipment:equipment(tag)",
+        "id, title, description, priority, status, opened_by_user_id, opened_at, work_order_id, client_id, unit_id, equipment_id, client:clients(corporate_name), unit:units(name), equipment:equipment(tag), opened_by:users!tickets_opened_by_user_id_fkey(full_name)",
       )
       .eq("assigned_user_id", me.id),
   ]);
@@ -264,6 +267,7 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
           finishedAt: w.finished_at,
           originTicketId: w.origin_ticket_id,
           createdAt: w.created_at,
+          createdByName: firstOf(w.created_by_user)?.full_name ?? null,
         })),
       );
 
@@ -356,6 +360,7 @@ export async function pullTechnicianData(): Promise<{ error?: string }> {
           equipmentId: t.equipment_id,
           equipmentTag: firstOf(t.equipment)?.tag ?? null,
           openedByUserId: t.opened_by_user_id,
+          openedByName: firstOf(t.opened_by)?.full_name ?? null,
           openedAt: t.opened_at,
           workOrderId: t.work_order_id,
         })),

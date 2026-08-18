@@ -1,6 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { useRef, useState } from "react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
 import { NarrativeForm } from "@/features/maintenance/components/narrative-form";
@@ -12,11 +14,18 @@ import {
   missingRequiredCategories,
 } from "@/features/attachments/schema";
 import { MAINTENANCE_RESOLUTION_LABELS } from "@/features/maintenance/schema";
-import { PartsRequestForm } from "@/features/parts-requests/components/parts-request-form";
+import { PartsRequestDialog } from "@/features/parts-requests/components/parts-request-dialog";
 import { TicketPriorityBadge } from "@/features/tickets/components/ticket-priority-badge";
 import type { TicketPriority } from "@/features/tickets/schema";
+import { PageBackHeader } from "@/components/shared/page-back-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+/** Data e hora de um `timestamptz` — o fuso local do aparelho, que é o do técnico. */
+function formatMoment(iso: string | null): string {
+  if (!iso) return "data não registrada";
+  return format(new Date(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+}
 
 /**
  * Atendimento de **corretiva** (Fase 10): um problema, num aparelho.
@@ -28,6 +37,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  * As seções de trabalho só aparecem depois de "Iniciar atividade": é esse toque
  * que move a OS para "em andamento" no sistema, então deixá-lo pulável faria o
  * administrador ver "Aberta" com o serviço já em curso.
+ *
+ * Fase 11 — o cartão de origem passou a dizer **quem** abriu e **quando** (podia
+ * ter sido o despachante ou outro técnico durante uma preventiva), a peça saiu
+ * de formulário aberto para botão, e o atendimento continua editável depois de
+ * concluído enquanto a OS não for fechada.
  */
 export function AtendimentoCorretiva({
   workOrderId,
@@ -36,6 +50,9 @@ export function AtendimentoCorretiva({
   workOrderId: string;
   maintenanceRecordId: string;
 }) {
+  const partsRef = useRef<HTMLDivElement>(null);
+  const [partsDialogOpen, setPartsDialogOpen] = useState(false);
+
   const data = useLiveQuery(async () => {
     const [record, workOrder, partsRequests, attachments, meta] = await Promise.all([
       offlineDb.maintenanceRecords.get(maintenanceRecordId),
@@ -88,42 +105,43 @@ export function AtendimentoCorretiva({
 
   const started = Boolean(record.startedAt);
   const done = record.status === "completed";
+  const readOnly = workOrder.status === "concluida" || workOrder.status === "cancelada";
   const backHref = `/minhas-atividades/${workOrder.unitId}/corretivas`;
   const missingPhotos = missingRequiredCategories(
     CORRECTIVE_ATTACHMENT_CATEGORIES,
     data.attachments,
   );
 
+  function focusParts() {
+    setPartsDialogOpen(true);
+    partsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-muted-foreground text-sm">
-          <Link href={`/minhas-atividades/${workOrder.unitId}`} className="hover:underline">
-            {workOrder.unitName}
-          </Link>{" "}
-          /{" "}
-          <Link href={backHref} className="hover:underline">
-            Corretivas
-          </Link>
-        </p>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{record.equipmentTag}</h1>
-            {done && (
-              <Badge variant="secondary">
-                {record.resolution
-                  ? MAINTENANCE_RESOLUTION_LABELS[record.resolution]
-                  : "Concluído"}
-              </Badge>
-            )}
-          </div>
-          <RecordLifecycleButtons
-            recordId={record.id}
-            startedAt={record.startedAt}
-            status={record.status}
-          />
-        </div>
-      </div>
+      <PageBackHeader
+        backHref={backHref}
+        backLabel="Corretivas"
+        title={record.equipmentTag}
+        subtitle={workOrder.unitName}
+        actions={
+          readOnly ? (
+            <Badge variant="outline">OS fechada</Badge>
+          ) : done ? (
+            <Badge variant="secondary">
+              {record.resolution
+                ? MAINTENANCE_RESOLUTION_LABELS[record.resolution]
+                : "Concluído"}
+            </Badge>
+          ) : (
+            <RecordLifecycleButtons
+              recordId={record.id}
+              startedAt={record.startedAt}
+              status={record.status}
+            />
+          )
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -140,10 +158,16 @@ export function AtendimentoCorretiva({
               <p className="text-muted-foreground whitespace-pre-wrap">
                 {data.ticket.description ?? "Sem descrição registrada."}
               </p>
+              <p className="text-muted-foreground text-xs">
+                Aberto por {data.ticket.openedByName ?? "usuário não identificado"} em{" "}
+                {formatMoment(data.ticket.openedAt)}.
+              </p>
             </>
           ) : (
             <p className="text-muted-foreground">
-              Esta OS não veio de um chamado — foi aberta direto pelo administrador.
+              Sem chamado de origem — ordem de serviço aberta por{" "}
+              {workOrder.createdByName ?? "usuário não identificado"} em{" "}
+              {formatMoment(workOrder.createdAt)}.
             </p>
           )}
         </CardContent>
@@ -183,10 +207,6 @@ export function AtendimentoCorretiva({
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Fotos</CardTitle>
-              <CardDescription>
-                Equipamento e etiqueta são obrigatórias. Vídeo não vai por aqui —
-                mande direto ao administrador.
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <AttachmentUploaderGroup
@@ -196,11 +216,12 @@ export function AtendimentoCorretiva({
                 equipmentId={record.equipmentId}
                 categories={CORRECTIVE_ATTACHMENT_CATEGORIES}
                 attachments={data.attachments}
+                readOnly={readOnly}
               />
             </CardContent>
           </Card>
 
-          <Card>
+          <Card ref={partsRef}>
             <CardHeader>
               <CardTitle className="text-base">Peças</CardTitle>
             </CardHeader>
@@ -210,8 +231,8 @@ export function AtendimentoCorretiva({
               ) : (
                 <div className="flex flex-col gap-1">
                   {data.partsRequests.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between text-sm">
-                      <span>
+                    <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate">
                         {p.partName} × {p.quantity}
                       </span>
                       <Badge variant="outline">{p.status}</Badge>
@@ -219,7 +240,16 @@ export function AtendimentoCorretiva({
                   ))}
                 </div>
               )}
-              <PartsRequestForm workOrderId={workOrderId} maintenanceRecordId={record.id} />
+              {!readOnly && (
+                <PartsRequestDialog
+                  workOrderId={workOrderId}
+                  maintenanceRecordId={record.id}
+                  open={partsDialogOpen}
+                  onOpenChange={setPartsDialogOpen}
+                  disabled={missingPhotos.length > 0}
+                  disabledReason="Suba a foto do equipamento e da etiqueta para solicitar peça."
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -228,13 +258,17 @@ export function AtendimentoCorretiva({
               <CardTitle className="text-base">Laudo</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
-              <NarrativeForm record={record} />
-              {!done && (
+              <NarrativeForm record={record} disabled={readOnly} />
+              {!readOnly && (
                 <div className="border-t pt-6">
                   <RecordConclusion
                     recordId={record.id}
                     missingPhotos={missingPhotos}
+                    hasParts={data.partsRequests.length > 0}
+                    alreadyDone={done}
+                    currentResolution={record.resolution}
                     backHref={backHref}
+                    onNeedPart={focusParts}
                   />
                 </div>
               )}
