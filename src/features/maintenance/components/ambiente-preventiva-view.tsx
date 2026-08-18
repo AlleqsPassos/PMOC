@@ -114,8 +114,21 @@ export function AmbientePreventivaView({
     const preventivaIds = new Set(preventivas.map((w) => w.id));
     const equipmentById = new Map(equipment.map((e) => [e.id, e]));
 
-    const records = allRecords.filter(
+    const allEnvironmentRecords = allRecords.filter(
       (r) => preventivaIds.has(r.workOrderId) && equipmentById.has(r.equipmentId),
+    );
+
+    // **Aparelho impedido sai da preventiva.** Ele não é um item da rotina desta
+    // sala enquanto estiver parado: deixá-lo na grade convidava a lançar medição
+    // num equipamento que o próprio técnico declarou defeituoso, e o fazia
+    // aparecer em duas divisões ao mesmo tempo. Ele vive na aba de impedimentos,
+    // com tela própria; aqui fica só o aviso de que saiu, para a sala não perder
+    // um aparelho em silêncio.
+    const impededRecords = allEnvironmentRecords.filter((r) =>
+      impededEquipment.has(r.equipmentId),
+    );
+    const records = allEnvironmentRecords.filter(
+      (r) => !impededEquipment.has(r.equipmentId),
     );
     const recordIds = records.map((r) => r.id);
 
@@ -202,7 +215,9 @@ export function AmbientePreventivaView({
       gridTypes,
       checklistGroups,
       companyId: meta?.value ?? "",
-      impededEquipment,
+      impedidos: impededRecords
+        .map((r) => ({ id: r.id, tag: r.equipmentTag }))
+        .sort((a, b) => a.tag.localeCompare(b.tag)),
       notStarted: records.filter((r) => !r.startedAt).map((r) => r.id),
       openRecordIds: records.filter((r) => r.status !== "completed").map((r) => r.id),
       workOrderClosed: preventivas.some(
@@ -292,24 +307,13 @@ export function AmbientePreventivaView({
                 <div key={record.id} className="flex flex-col gap-3 border-b pb-5 last:border-0 last:pb-0">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">{tag}</span>
-                    {data.impededEquipment.has(record.equipmentId) ? (
-                      <Link
-                        href={`/minhas-atividades/${unitId}/impedimentos/${record.id}`}
-                        className="shrink-0"
-                      >
-                        <WorkBucketBadge tone="impedimento">
-                          Impedimento aberto
-                        </WorkBucketBadge>
-                      </Link>
-                    ) : (
-                      <ImpedimentoDialog
-                        companyId={data.companyId}
-                        workOrderId={record.workOrderId}
-                        maintenanceRecordId={record.id}
-                        equipmentId={record.equipmentId}
-                        equipmentTag={tag}
-                      />
-                    )}
+                    <ImpedimentoDialog
+                      companyId={data.companyId}
+                      workOrderId={record.workOrderId}
+                      maintenanceRecordId={record.id}
+                      equipmentId={record.equipmentId}
+                      equipmentTag={tag}
+                    />
                   </div>
                   <MeasurementGrid
                     recordId={record.id}
@@ -319,6 +323,26 @@ export function AmbientePreventivaView({
                   />
                 </div>
               ))}
+
+              {data.impedidos.length > 0 && (
+                <div className="flex flex-col gap-2 border-t pt-4">
+                  <p className="text-muted-foreground text-sm">
+                    {data.impedidos.length === 1
+                      ? "Um equipamento saiu desta preventiva por impedimento:"
+                      : `${data.impedidos.length} equipamentos saíram desta preventiva por impedimento:`}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {data.impedidos.map((item) => (
+                      <Link
+                        key={item.id}
+                        href={`/minhas-atividades/${unitId}/impedimentos/${item.id}`}
+                      >
+                        <WorkBucketBadge tone="impedimento">{item.tag}</WorkBucketBadge>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
