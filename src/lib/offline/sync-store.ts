@@ -25,6 +25,8 @@ export function useSyncStatus(): {
   status: SyncStatus;
   pendingCount: number;
   errorCount: number;
+  /** Instante do último pull bem-sucedido (ISO) — exibido ao lado do selo. */
+  lastPulledAt: string | null;
 } {
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator !== "undefined" ? navigator.onLine : true,
@@ -53,11 +55,12 @@ export function useSyncStatus(): {
     { pending: 0, error: 0 },
   );
 
-  const hasPulled = useLiveQuery(
-    async () => Boolean(await offlineDb.meta.get("lastPulledAt")),
+  const lastPulledAt = useLiveQuery(
+    async () => (await offlineDb.meta.get("lastPulledAt"))?.value ?? null,
     [],
-    false,
+    null,
   );
+  const hasPulled = Boolean(lastPulledAt);
 
   let status: SyncStatus;
   if (!isOnline) {
@@ -72,5 +75,10 @@ export function useSyncStatus(): {
     status = "synced";
   }
 
-  return { status, pendingCount: counts?.pending ?? 0, errorCount: counts?.error ?? 0 };
+  return {
+    status,
+    pendingCount: counts?.pending ?? 0,
+    errorCount: counts?.error ?? 0,
+    lastPulledAt,
+  };
 }

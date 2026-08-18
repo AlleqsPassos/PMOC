@@ -18,6 +18,7 @@
 | 9 | A visão do técnico (menu enxuto, Início por unidade, cadastro de equipamento em campo) | ✅ Concluída (commit `900fb6a`) |
 | 10 | O atendimento do técnico (corretiva e preventiva com formas próprias, ciclo de vida da OS, catálogo de peças, equipamentos do técnico) | ✅ Concluída |
 | 11 | O celular do técnico (divisão em aberto/impedimentos/concluídos, foto obrigatória travando, peça por diálogo, navegação mobile) | ✅ Concluída |
+| 12 | Ajustes do teste no celular (impedimento trava até o admin liberar, concluído volta a ser editável, alvos de toque, data no selo de sync) | ✅ Concluída |
 | — | Deploy inicial no Vercel | ✅ Concluída — `https://pmoc-plus.vercel.app`, projeto `alex-6e84/pmoc-plus` conectado ao repo GitHub (auto-deploy a cada push em `master`) |
 
 ## Contexto
@@ -570,6 +571,25 @@ Segunda fase inteiramente motivada por uso real: o usuário testou a Fase 10 **n
 **Detalhe de comportamento:** as abas abrem na primeira divisão que tem algo a mostrar (aberto → impedimento → concluído). Cair numa aba vazia com trabalho ao lado é fazer o técnico procurar.
 
 Verificado: `npm run build --webpack` + `npm run lint` limpos; fluxo conferido no navegador em viewport de celular (375×812) com a conta de teste — Início listando as duas unidades com os selos novos ("4 concluídos", "2 impedimentos"), a aba Impedimentos trazendo os dois aparelhos com localização e tag, a aba Concluídos alcançando a preventiva de OS já fechada, essa tela abrindo com as dez medições desabilitadas e sem nenhum botão de ação, o cartão de origem exibindo "aberta por Admin Teste Fase8 em 17/08/2026 às 11:18", e "Solicitar peça"/"Atualizar desfecho" ambos desabilitados por falta das duas fotos obrigatórias; barra inferior renderizando e o gatilho da gaveta com `display:none` no celular. O indicador da fila do administrador teve o **dado** conferido no Supabase (2 registros `aguardando_peca` numa OS `em_andamento`, que é o que a linha vai exibir) mas **não** a renderização — trocar de conta exigia clicar no menu do usuário, e a automação de clique do navegador não respondeu nesta sessão.
+
+### FASE 12 — Ajustes do teste no celular ✅ concluída
+
+Lista de acertos que o usuário levantou usando a Fase 11 no aparelho, item a item, na mesma sessão. Nenhuma migration — as colunas envolvidas (`maintenance_records.status`/`resolution`) já aceitam todos os valores usados aqui desde a Fase 10.
+
+**A mudança de regra: aguardando peça agora trava o atendimento.** A Fase 11 tinha dado ao técnico o botão "Atualizar desfecho" para ele mesmo registrar que a peça chegou. O usuário reverteu: quem sabe se a peça chegou é o administrador, e reabrir um serviço que depende de material que não chegou não muda nada. Então o registro fechado como `aguardando_peca` fica **somente leitura** para o técnico — fotos, laudo, peça e desfecho — com um cartão dizendo o que está acontecendo e quem destrava. Do outro lado, a página da OS ganhou **"Liberar para o técnico"** (`features/maintenance/actions.ts`, recriado nesta fase só para o fluxo administrativo, e `ReopenRecordButton`): volta o registro para `draft`, limpa `resolution` e `completed_at`, e reabre a OS se ela já tinha sido fechada — senão o serviço voltaria a existir dentro de uma OS que diz o contrário. Nada do que já foi preenchido se perde: ele retoma de onde parou. É a tradução literal de "só poderá ser alterado novamente após o administrador atribuir novamente aquele chamado para o técnico".
+
+**E a reversão contrária, no mesmo dia: OS fechada não trava mais nada.** A Fase 11 tinha colocado a preventiva e a corretiva em modo leitura quando a OS fechava, com o argumento da consolidação de PMOC. O usuário desfez com um caso concreto — "pode ser que o técnico esqueceu de preencher algo" — e ele está certo: quem tem como corrigir é quem esteve lá. O selo "OS fechada" continua na tela, agora como informação e não como cadeado. Sobrou uma única trava no fluxo do técnico, a de aguardando peça, e ela tem dono explícito para destravar.
+
+Os demais itens, todos de percurso:
+
+- **Cartão de origem** — as duas frases (com e sem chamado) viraram uma: `Chamado aberto por <nome> em <data> às <hora>`.
+- **Botão de voltar** — era um link de texto com ícone de 16px; virou alvo de 44px com borda, o mínimo recomendado para o dedo.
+- **"Equipamentos" saiu de baixo das abas** e entrou na aba "Em aberto": repetido nas três divisões, virava ruído.
+- **As abas sempre abrem em "Em aberto"** (a Fase 11 escolhia a primeira aba com conteúdo). A tela mudava de cara de uma unidade para outra e o técnico perdia a referência.
+- **Vazio de impedimentos** — "Nenhum impedimento ou equipamento aguardando peça nesta unidade."
+- **Selo de sincronização com data** — "Sincronizado · hoje 22:54", ou `dd/MM HH:mm` quando não é hoje. O selo respondia "deu certo?" mas não "de quando é o que estou vendo?", que é a pergunta de quem passa o dia em campo sem sinal.
+
+Verificado: `npm run build --webpack` + `npm run lint` limpos; conferido em viewport de celular com a conta de teste — a unidade abrindo em "Em aberto" com o menu de Equipamentos dentro dela, o selo mostrando "hoje 22:54", o atendimento travado exibindo o cartão de bloqueio com os três campos de laudo desabilitados e nenhum botão de ação, o botão de voltar medindo 44px de altura, e a página da OS listando os dois equipamentos como "Aguardando peça". O botão "Liberar para o técnico" foi conferido pelo **avesso**: aberto com a conta do técnico, a linha mostra o selo e **não** mostra o botão, que é o gate de `manage_work_orders` funcionando; a renderização com a conta de administrador não foi vista nesta sessão porque a automação de clique do navegador não respondeu para trocar de conta.
 
 ### Fora de escopo do MVP (explícito no briefing original)
 Billing/assinatura, controle de estoque, portal do cliente, QR codes, integração WhatsApp API, push notifications nativas, assinatura digital/e-signature, exportação de laudo em PDF avulso (fora do fluxo de PMOC), apps nativos (iOS/Android) — só PWA. Arquitetura deliberadamente deixa pontos de extensão (campos nullable, FKs opcionais) para que nenhum desses itens exija migração destrutiva quando for priorizado.

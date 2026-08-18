@@ -13,6 +13,11 @@ import { ChevronLeft } from "lucide-react";
  * PWA em tela cheia. O destino é explícito (`href`), não `history.back()`:
  * chegar por link direto ou recarregar a página não pode deixar o botão sem
  * para onde ir.
+ *
+ * O alvo tem 44px de altura e borda visível (Fase 12): a primeira versão era um
+ * link de texto com ícone de 16px, e o usuário reclamou de dar trabalho acertar
+ * com o dedo — 44px é o mínimo recomendado para toque, e a borda diz que ali é
+ * um botão, não um rótulo.
  */
 export function PageBackHeader({
   backHref,
@@ -28,12 +33,12 @@ export function PageBackHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <Link
         href={backHref}
-        className="text-muted-foreground hover:text-foreground -ml-2 inline-flex w-fit items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors"
+        className="border-input bg-background hover:bg-accent/50 inline-flex h-11 w-fit items-center gap-1.5 rounded-lg border pr-4 pl-2.5 text-sm font-medium transition-colors"
       >
-        <ChevronLeft className="size-4" />
+        <ChevronLeft className="size-5" />
         {backLabel}
       </Link>
       <div className="flex flex-wrap items-center justify-between gap-2">

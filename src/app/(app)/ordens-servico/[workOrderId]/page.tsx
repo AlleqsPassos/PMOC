@@ -14,6 +14,7 @@ import { WorkOrderStatusBadge } from "@/features/work-orders/components/work-ord
 import { WorkOrderAssignSelect } from "@/features/work-orders/components/work-order-assign-select";
 import { WORK_ORDER_TYPE_LABELS } from "@/features/work-orders/schema";
 import { PartsRequestStatusSelect } from "@/features/parts-requests/components/parts-request-status-select";
+import { ReopenRecordButton } from "@/features/maintenance/components/reopen-record-button";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -166,9 +167,23 @@ export default async function OrdemServicoDetalhePage(
                     {mr.technicianName && (
                       <span className="text-muted-foreground text-xs">{mr.technicianName}</span>
                     )}
-                    <Badge variant={mr.status === "completed" ? "default" : "outline"}>
-                      {mr.status === "completed" ? "Concluído" : "Rascunho"}
-                    </Badge>
+                    {mr.resolution === "aguardando_peca" ? (
+                      <Badge variant="destructive">Aguardando peça</Badge>
+                    ) : (
+                      <Badge variant={mr.status === "completed" ? "default" : "outline"}>
+                        {mr.status === "completed" ? "Concluído" : "Rascunho"}
+                      </Badge>
+                    )}
+                    {/* Fase 12: o atendimento trava para o técnico quando ele pede
+                        peça. Quem devolve o serviço é o administrador, que é quem
+                        sabe se a peça chegou. */}
+                    {mr.resolution === "aguardando_peca" && canManage && (
+                      <ReopenRecordButton
+                        recordId={mr.id}
+                        workOrderId={workOrder.id}
+                        equipmentTag={mr.equipmentTag}
+                      />
+                    )}
                     {canOpenAtendimento && (
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/ordens-servico/${workOrder.id}/atender/${mr.id}`}>

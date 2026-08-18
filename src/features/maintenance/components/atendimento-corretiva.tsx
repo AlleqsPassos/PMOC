@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { LockKeyhole } from "lucide-react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
 import { NarrativeForm } from "@/features/maintenance/components/narrative-form";
@@ -21,7 +22,7 @@ import { PageBackHeader } from "@/components/shared/page-back-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-/** Data e hora de um `timestamptz` — o fuso local do aparelho, que é o do técnico. */
+/** Data e hora de um `timestamptz` — no fuso do aparelho, que é o do técnico. */
 function formatMoment(iso: string | null): string {
   if (!iso) return "data não registrada";
   return format(new Date(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
@@ -31,17 +32,16 @@ function formatMoment(iso: string | null): string {
  * Atendimento de **corretiva** (Fase 10): um problema, num aparelho.
  *
  * Sem checklist e sem medições — decisão do usuário, que descreveu a corretiva
- * como fotografar, pedir peça e laudar. Antes desta fase a mesma tela genérica
- * servia corretiva e preventiva, com as quatro seções sempre visíveis.
+ * como fotografar, pedir peça e laudar.
  *
  * As seções de trabalho só aparecem depois de "Iniciar atividade": é esse toque
  * que move a OS para "em andamento" no sistema, então deixá-lo pulável faria o
  * administrador ver "Aberta" com o serviço já em curso.
  *
- * Fase 11 — o cartão de origem passou a dizer **quem** abriu e **quando** (podia
- * ter sido o despachante ou outro técnico durante uma preventiva), a peça saiu
- * de formulário aberto para botão, e o atendimento continua editável depois de
- * concluído enquanto a OS não for fechada.
+ * Fase 12 — quem trava a tela é o **desfecho**, não o estado da OS. Aguardando
+ * peça = travado até o administrador liberar; qualquer outro caso continua
+ * editável, inclusive depois de a OS ter sido fechada (o técnico pode ter
+ * esquecido de preencher algo, e a Fase 11 estava impedindo isso sem motivo).
  */
 export function AtendimentoCorretiva({
   workOrderId,
@@ -105,7 +105,10 @@ export function AtendimentoCorretiva({
 
   const started = Boolean(record.startedAt);
   const done = record.status === "completed";
-  const readOnly = workOrder.status === "concluida" || workOrder.status === "cancelada";
+  // Travado enquanto depende de peça: reabrir e mexer num serviço que espera
+  // material não muda o fato de que ele espera material. Quem destrava é o
+  // administrador, na página da OS ("Liberar para o técnico").
+  const locked = record.resolution === "aguardando_peca";
   const backHref = `/minhas-atividades/${workOrder.unitId}/corretivas`;
   const missingPhotos = missingRequiredCategories(
     CORRECTIVE_ATTACHMENT_CATEGORIES,
@@ -117,6 +120,11 @@ export function AtendimentoCorretiva({
     partsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  // Uma frase só para os dois casos: o que interessa é quem abriu e quando.
+  const openedBy = data.ticket
+    ? { name: data.ticket.openedByName, at: data.ticket.openedAt }
+    : { name: workOrder.createdByName, at: workOrder.createdAt };
+
   return (
     <div className="flex flex-col gap-6">
       <PageBackHeader
@@ -125,10 +133,8 @@ export function AtendimentoCorretiva({
         title={record.equipmentTag}
         subtitle={workOrder.unitName}
         actions={
-          readOnly ? (
-            <Badge variant="outline">OS fechada</Badge>
-          ) : done ? (
-            <Badge variant="secondary">
+          done ? (
+            <Badge variant={locked ? "destructive" : "secondary"}>
               {record.resolution
                 ? MAINTENANCE_RESOLUTION_LABELS[record.resolution]
                 : "Concluído"}
@@ -149,7 +155,7 @@ export function AtendimentoCorretiva({
           <CardDescription>{workOrder.title}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2 text-sm">
-          {data.ticket ? (
+          {data.ticket && (
             <>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{data.ticket.title}</span>
@@ -158,18 +164,12 @@ export function AtendimentoCorretiva({
               <p className="text-muted-foreground whitespace-pre-wrap">
                 {data.ticket.description ?? "Sem descrição registrada."}
               </p>
-              <p className="text-muted-foreground text-xs">
-                Aberto por {data.ticket.openedByName ?? "usuário não identificado"} em{" "}
-                {formatMoment(data.ticket.openedAt)}.
-              </p>
             </>
-          ) : (
-            <p className="text-muted-foreground">
-              Sem chamado de origem — ordem de serviço aberta por{" "}
-              {workOrder.createdByName ?? "usuário não identificado"} em{" "}
-              {formatMoment(workOrder.createdAt)}.
-            </p>
           )}
+          <p className="text-muted-foreground">
+            Chamado aberto por {openedBy.name ?? "usuário não identificado"} em{" "}
+            {formatMoment(openedBy.at)}.
+          </p>
         </CardContent>
       </Card>
 
@@ -194,6 +194,20 @@ export function AtendimentoCorretiva({
         </CardContent>
       </Card>
 
+      {locked && (
+        <Card className="border-destructive/40">
+          <CardContent className="flex items-start gap-3 py-4 text-sm">
+            <LockKeyhole className="text-destructive mt-0.5 size-4 shrink-0" />
+            <p>
+              Este atendimento está <span className="font-medium">aguardando peça</span> e
+              ficou travado. Quando a peça chegar, o administrador libera o
+              equipamento para você e ele volta para a divisão &quot;Em aberto&quot; da
+              unidade.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {!started ? (
         <Card>
           <CardContent className="text-muted-foreground py-8 text-center text-sm">
@@ -216,7 +230,7 @@ export function AtendimentoCorretiva({
                 equipmentId={record.equipmentId}
                 categories={CORRECTIVE_ATTACHMENT_CATEGORIES}
                 attachments={data.attachments}
-                readOnly={readOnly}
+                readOnly={locked}
               />
             </CardContent>
           </Card>
@@ -240,7 +254,7 @@ export function AtendimentoCorretiva({
                   ))}
                 </div>
               )}
-              {!readOnly && (
+              {!locked && (
                 <PartsRequestDialog
                   workOrderId={workOrderId}
                   maintenanceRecordId={record.id}
@@ -258,8 +272,8 @@ export function AtendimentoCorretiva({
               <CardTitle className="text-base">Laudo</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
-              <NarrativeForm record={record} disabled={readOnly} />
-              {!readOnly && (
+              <NarrativeForm record={record} disabled={locked} />
+              {!locked && (
                 <div className="border-t pt-6">
                   <RecordConclusion
                     recordId={record.id}

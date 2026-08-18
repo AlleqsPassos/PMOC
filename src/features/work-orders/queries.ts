@@ -93,6 +93,8 @@ export type MaintenanceRecordSummary = {
   equipmentId: string;
   equipmentTag: string;
   status: "draft" | "completed";
+  /** Fase 12 — desfecho do técnico; `aguardando_peca` é o que o admin precisa liberar. */
+  resolution: "resolvido" | "aguardando_peca" | null;
   technicianName: string | null;
 };
 
@@ -133,7 +135,9 @@ export async function getWorkOrderDetail(workOrderId: string): Promise<WorkOrder
       .maybeSingle(),
     supabase
       .from("maintenance_records")
-      .select("id, equipment_id, status, technician_user_id, equipment:equipment(tag), technician:users(full_name)")
+      .select(
+        "id, equipment_id, status, resolution, technician_user_id, equipment:equipment(tag), technician:users(full_name)",
+      )
       .eq("work_order_id", workOrderId)
       .order("created_at"),
   ]);
@@ -165,6 +169,7 @@ export async function getWorkOrderDetail(workOrderId: string): Promise<WorkOrder
       equipmentId: r.equipment_id,
       equipmentTag: firstOf(r.equipment)?.tag ?? "—",
       status: r.status,
+      resolution: r.resolution,
       technicianName: firstOf(r.technician)?.full_name ?? null,
     })),
   };

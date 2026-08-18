@@ -156,18 +156,10 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
         subtitle={data.clientName}
       />
 
-      {/* Abre na divisão que tem algo a mostrar, na ordem de urgência — cair
-          numa aba vazia quando existe trabalho ao lado é fazer o técnico
-          procurar. */}
-      <Tabs
-        defaultValue={
-          data.counts.aberto > 0
-            ? "aberto"
-            : data.counts.impedimento > 0
-              ? "impedimento"
-              : "concluido"
-        }
-      >
+      {/* Sempre abre em "Em aberto" — decisão do usuário. A aba escolhida
+          automaticamente pelo estado fazia a tela mudar de cara entre uma
+          unidade e outra, e o técnico perdia a referência de onde estava. */}
+      <Tabs defaultValue="aberto">
         <TabsList className="w-full">
           <TabsTrigger value="aberto">Em aberto ({data.counts.aberto})</TabsTrigger>
           <TabsTrigger value="impedimento">
@@ -232,6 +224,13 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
             disabled={data.corretivaWorkOrders === 0}
           />
 
+          <MenuEntry
+            href={`/equipamentos?unidade=${unitId}`}
+            icon={Wrench}
+            title="Equipamentos"
+            description={`${data.equipmentCount} cadastrado${data.equipmentCount === 1 ? "" : "s"} nesta unidade. Achou um que não está aqui? Cadastre.`}
+          />
+
           {data.assignedTickets.length > 0 && (
             <Card>
               <CardHeader>
@@ -262,7 +261,7 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
 
         <TabsContent value="impedimento" className="flex flex-col gap-4">
           {data.impedimentos.length === 0 && data.raisedTickets.length === 0 ? (
-            <EmptyTab text="Nenhum impedimento nesta unidade. Equipamento que ficou aguardando peça aparece aqui." />
+            <EmptyTab text="Nenhum impedimento ou equipamento aguardando peça nesta unidade." />
           ) : (
             <>
               {data.impedimentos.length > 0 && (
@@ -329,9 +328,8 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
                   Atendimentos concluídos
                 </CardTitle>
                 <CardDescription>
-                  {data.concluidos.some((i) => i.workOrderOpen)
-                    ? "Enquanto a ordem de serviço não for fechada, dá para abrir e corrigir o que foi registrado."
-                    : "A ordem de serviço já foi fechada — dá para conferir o que foi registrado, mas não para alterar."}
+                  Abra qualquer um para conferir ou corrigir o que foi
+                  registrado.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
@@ -343,13 +341,6 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
           )}
         </TabsContent>
       </Tabs>
-
-      <MenuEntry
-        href={`/equipamentos?unidade=${unitId}`}
-        icon={Wrench}
-        title="Equipamentos"
-        description={`${data.equipmentCount} cadastrado${data.equipmentCount === 1 ? "" : "s"} nesta unidade. Achou um que não está aqui? Cadastre.`}
-      />
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { RefreshCw } from "lucide-react";
+import { format, isToday } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSyncStatus, SYNC_STATUS_LABELS, type SyncStatus } from "@/lib/offline/sync-store";
@@ -13,6 +15,22 @@ import { drainThenPull, setupSyncTriggers } from "@/lib/offline/sync-engine";
 // setState síncrono dentro de efeito (proibido pelo lint deste projeto,
 // mesmo motivo do padrão em use-close-on-success.ts).
 const subscribeNoop = () => () => {};
+
+/**
+ * Quando os dados deste aparelho foram atualizados pela última vez (Fase 12).
+ *
+ * O selo dizia só "Sincronizado", que responde "deu certo?" mas não "de quando
+ * é o que estou vendo?" — e essa é a pergunta de quem trabalha o dia inteiro em
+ * campo, às vezes sem sinal. "hoje 14:32" contra "16/08 09:10" dá a resposta num
+ * relance; a data completa só aparece quando não é hoje, para não gastar
+ * largura da barra no caso comum.
+ */
+function formatLastPull(iso: string): string {
+  const date = new Date(iso);
+  return isToday(date)
+    ? `hoje ${format(date, "HH:mm", { locale: ptBR })}`
+    : format(date, "dd/MM HH:mm", { locale: ptBR });
+}
 
 const DOT_CLASS: Record<SyncStatus, string> = {
   offline: "bg-muted-foreground",
@@ -42,7 +60,7 @@ export function SyncStatusBadge() {
     () => true,
     () => false,
   );
-  const { status, pendingCount, errorCount } = useSyncStatus();
+  const { status, pendingCount, errorCount, lastPulledAt } = useSyncStatus();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -85,6 +103,9 @@ export function SyncStatusBadge() {
       >
         <span className={`size-1.5 rounded-full ${DOT_CLASS[status]}`} />
         {label}
+        {lastPulledAt && (
+          <span className="text-muted-foreground/70">· {formatLastPull(lastPulledAt)}</span>
+        )}
       </Badge>
       <Button
         variant="ghost"
