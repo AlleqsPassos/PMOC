@@ -125,7 +125,7 @@ export function ImpedimentoDialog({
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
           <TriangleAlert className="size-4" />
-          Impedimento
+          Abrir impedimento
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">

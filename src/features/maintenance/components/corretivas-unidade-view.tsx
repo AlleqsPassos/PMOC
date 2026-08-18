@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
-import { bucketOfRecord, loadWorkByUnit } from "@/features/maintenance/offline-queries";
+import { bucketOfRecord, impededEquipmentIds, loadWorkByUnit } from "@/features/maintenance/offline-queries";
 import { PageBackHeader } from "@/components/shared/page-back-header";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -32,6 +32,7 @@ export function CorretivasUnidadeView({ unitId }: { unitId: string }) {
     ]);
 
     const work = byUnit.get(unitId);
+    const impeded = work ? impededEquipmentIds(work) : new Set<string>();
     const equipmentById = new Map(equipment.map((e) => [e.id, e]));
     const environmentById = new Map(environments.map((e) => [e.id, e]));
     const sectorById = new Map(sectors.map((s) => [s.id, s]));
@@ -40,7 +41,7 @@ export function CorretivasUnidadeView({ unitId }: { unitId: string }) {
       .filter((w) => w.type === "corretiva")
       .flatMap((workOrder) =>
         (work?.recordsByWorkOrder.get(workOrder.id) ?? [])
-          .filter((record) => bucketOfRecord(record) === "aberto")
+          .filter((record) => bucketOfRecord(record, impeded) === "aberto")
           .map((record) => {
             const eq = equipmentById.get(record.equipmentId);
             const environment = eq ? environmentById.get(eq.environmentId) : undefined;

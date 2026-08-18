@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ChevronRight,
+  Eye,
   FileCheck2,
   Headset,
   TriangleAlert,
@@ -24,7 +25,7 @@ import { type TicketStatus, type TicketPriority } from "@/features/tickets/schem
 import { TicketStatusBadge } from "@/features/tickets/components/ticket-status-badge";
 import { TicketPriorityBadge } from "@/features/tickets/components/ticket-priority-badge";
 import { PageBackHeader } from "@/components/shared/page-back-header";
-import { Badge } from "@/components/ui/badge";
+import { WorkBucketBadge } from "@/components/shared/work-bucket-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -44,6 +45,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
  * **Impedimentos** e **Concluídos**. A divisão mora aqui, e não no Início, pelo
  * motivo que o usuário deu: é dentro da unidade que ela separa alguma coisa —
  * no Início, com muitas unidades, ela só somaria números de lugares diferentes.
+ *
+ * Fase 13 — em Concluídos, a preventiva é listada **por ambiente**, não por
+ * aparelho: quatro linhas apontando para a mesma sala não são quatro destinos,
+ * são a mesma tela repetida. Corretiva continua por equipamento, que é o que ela
+ * é.
  *
  * **Guarda de escopo**: só abre se houver trabalho atribuído ao técnico nesta
  * unidade (em qualquer estado, inclusive já concluído — perder o acesso ao que
@@ -68,21 +74,17 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
     const environmentById = new Map(environments.map((e) => [e.id, e]));
     const sectorById = new Map(sectors.map((s) => [s.id, s]));
 
-    /** Onde o aparelho está e por qual tela se chega ao atendimento dele. */
-    const describe = (recordId: string, equipmentId: string, workOrder: { id: string; type: string }) => {
+    const locationOf = (equipmentId: string) => {
       const eq = equipmentById.get(equipmentId);
       const environment = eq ? environmentById.get(eq.environmentId) : undefined;
       const sector = environment?.sectorId ? sectorById.get(environment.sectorId) : undefined;
       return {
-        location:
+        environmentId: eq?.environmentId ?? null,
+        environmentName: environment?.name ?? null,
+        sectorName: sector?.name ?? null,
+        text:
           [sector?.name, environment?.name].filter(Boolean).join(" · ") ||
           "Sem localização registrada",
-        // Preventiva se atende por ambiente (a tela cobre vários aparelhos de
-        // uma vez); corretiva, por registro.
-        href:
-          workOrder.type === "preventiva" && eq
-            ? `/minhas-atividades/${unitId}/preventivas/${eq.environmentId}`
-            : `/ordens-servico/${workOrder.id}/atender/${recordId}`,
       };
     };
 
@@ -95,16 +97,59 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
         0,
       );
 
-    const toItems = (bucket: "impedimento" | "concluido") =>
-      recordsInBucket(work, bucket)
-        .map(({ record, workOrder }) => ({
-          id: record.id,
-          tag: record.equipmentTag,
-          workOrderTitle: workOrder.title,
-          workOrderOpen: workOrder.status !== "concluida" && workOrder.status !== "cancelada",
-          ...describe(record.id, record.equipmentId, workOrder),
-        }))
-        .sort((a, b) => a.tag.localeCompare(b.tag));
+    /** Uma linha por equipamento — usado nos impedimentos, que são sempre pontuais. */
+    const impedimentos = recordsInBucket(work, "impedimento")
+      .map(({ record, workOrder }) => ({
+        id: record.id,
+        title: record.equipmentTag,
+        subtitle: locationOf(record.equipmentId).text,
+        href: `/ordens-servico/${workOrder.id}/atender/${record.id}`,
+        workOrderOpen: workOrder.status !== "concluida" && workOrder.status !== "cancelada",
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+
+    /**
+     * Concluídos: preventiva agrupada por ambiente (a tela de destino cobre a
+     * sala inteira), corretiva por equipamento (a tela é de um aparelho só).
+     */
+    const grouped = new Map<
+      string,
+      { id: string; title: string; subtitle: string; href: string; workOrderOpen: boolean; count: number }
+    >();
+
+    for (const { record, workOrder } of recordsInBucket(work, "concluido")) {
+      const open = workOrder.status !== "concluida" && workOrder.status !== "cancelada";
+      const location = locationOf(record.equipmentId);
+
+      if (workOrder.type === "preventiva" && location.environmentId) {
+        const key = `amb-${location.environmentId}`;
+        const existing = grouped.get(key);
+        if (existing) {
+          existing.count += 1;
+          continue;
+        }
+        grouped.set(key, {
+          id: key,
+          title: location.environmentName ?? "Ambiente",
+          // Setor, quando existe — repetir o nome do ambiente como subtítulo do
+          // próprio ambiente não informa nada. A contagem entra no render.
+          subtitle: location.sectorName ?? "",
+          href: `/minhas-atividades/${unitId}/preventivas/${location.environmentId}`,
+          workOrderOpen: open,
+          count: 1,
+        });
+        continue;
+      }
+
+      grouped.set(record.id, {
+        id: record.id,
+        title: record.equipmentTag,
+        subtitle: location.text,
+        href: `/ordens-servico/${workOrder.id}/atender/${record.id}`,
+        workOrderOpen: open,
+        count: 1,
+      });
+    }
 
     return {
       hasAccess: true as const,
@@ -118,8 +163,8 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
       equipmentCount: equipment.length,
       assignedTickets: work.assignedTickets,
       raisedTickets: work.raisedTickets,
-      impedimentos: toItems("impedimento"),
-      concluidos: toItems("concluido"),
+      impedimentos,
+      concluidos: Array.from(grouped.values()).sort((a, b) => a.title.localeCompare(b.title)),
       closable: openWorkOrders
         .filter((w) => readyToClose(work.recordsByWorkOrder.get(w.id) ?? []))
         .map((w) => ({ id: w.id, title: w.title })),
@@ -269,16 +314,16 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <TriangleAlert className="text-destructive size-4" />
-                      Aguardando peça
+                      Equipamentos parados
                     </CardTitle>
                     <CardDescription>
-                      O atendimento foi registrado, mas o equipamento depende de
-                      material. A OS não deve ser fechada com um destes em aberto.
+                      Aguardando peça ou com defeito aberto por você. A OS não
+                      deve ser fechada com um destes pendente.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2">
                     {data.impedimentos.map((item) => (
-                      <RecordRow key={item.id} item={item} />
+                      <ItemRow key={item.id} item={item} tone="impedimento" />
                     ))}
                   </CardContent>
                 </Card>
@@ -328,13 +373,13 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
                   Atendimentos concluídos
                 </CardTitle>
                 <CardDescription>
-                  Abra qualquer um para conferir ou corrigir o que foi
+                  Toque em visualizar para conferir ou corrigir o que foi
                   registrado.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
                 {data.concluidos.map((item) => (
-                  <RecordRow key={item.id} item={item} />
+                  <ItemRow key={item.id} item={item} tone="concluido" showView />
                 ))}
               </CardContent>
             </Card>
@@ -345,27 +390,53 @@ export function UnidadeTecnicoView({ unitId }: { unitId: string }) {
   );
 }
 
-type RecordRowItem = {
+type RowItem = {
   id: string;
-  tag: string;
-  location: string;
+  title: string;
+  subtitle: string;
   href: string;
-  workOrderTitle: string;
   workOrderOpen: boolean;
+  count?: number;
 };
 
-function RecordRow({ item }: { item: RecordRowItem }) {
+function ItemRow({
+  item,
+  tone,
+  showView,
+}: {
+  item: RowItem;
+  tone: "impedimento" | "concluido";
+  showView?: boolean;
+}) {
   return (
     <Link
       href={item.href}
       className="hover:bg-accent/50 flex items-center justify-between gap-3 rounded-md border p-3 transition-colors"
     >
       <div className="min-w-0">
-        <p className="text-muted-foreground truncate text-sm">{item.location}</p>
-        <p className="truncate font-medium">{item.tag}</p>
+        <p className="truncate font-medium">{item.title}</p>
+        <p className="text-muted-foreground truncate text-sm">
+          {[
+            item.subtitle,
+            item.count && item.count > 1 ? `${item.count} equipamentos` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
       </div>
       <span className="flex shrink-0 items-center gap-2">
-        {!item.workOrderOpen && <Badge variant="outline">OS fechada</Badge>}
+        {!item.workOrderOpen && (
+          <WorkBucketBadge tone="concluido">OS fechada</WorkBucketBadge>
+        )}
+        {tone === "impedimento" && (
+          <WorkBucketBadge tone="impedimento">Parado</WorkBucketBadge>
+        )}
+        {showView && (
+          <span className="text-muted-foreground inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs">
+            <Eye className="size-3.5" />
+            Visualizar
+          </span>
+        )}
         <ChevronRight className="text-muted-foreground size-4" />
       </span>
     </Link>

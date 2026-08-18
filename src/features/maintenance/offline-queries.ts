@@ -36,12 +36,23 @@ export function isWorkOrderOpen(workOrder: OfflineWorkOrder): boolean {
  * técnico terminou a parte dele mas o equipamento não voltou a funcionar. Era o
  * ponto que o usuário flagrou — a corretiva com peça pedida continuava contando
  * como pendência no Início, como se ele ainda tivesse o que fazer ali.
+ *
+ * Fase 13 — o aparelho para o qual ele **abriu um impedimento** durante a
+ * preventiva também cai aqui, mesmo com o registro concluído. É o mesmo
+ * princípio: a sala foi atendida, mas aquele aparelho ficou com defeito, e
+ * deixá-lo entre os concluídos esconderia justamente a exceção. Por isso a
+ * classificação precisa do conjunto de equipamentos com chamado aberto por ele
+ * — a informação não está no registro.
  */
 export type WorkBucket = "aberto" | "impedimento" | "concluido";
 
-export function bucketOfRecord(record: OfflineMaintenanceRecord): WorkBucket {
+export function bucketOfRecord(
+  record: OfflineMaintenanceRecord,
+  impededEquipmentIds: ReadonlySet<string> = new Set(),
+): WorkBucket {
+  if (record.resolution === "aguardando_peca") return "impedimento";
   if (record.status !== "completed") return "aberto";
-  return record.resolution === "aguardando_peca" ? "impedimento" : "concluido";
+  return impededEquipmentIds.has(record.equipmentId) ? "impedimento" : "concluido";
 }
 
 export type UnitWork = {
@@ -110,18 +121,28 @@ export async function loadWorkByUnit(): Promise<Map<string, UnitWork>> {
   return byUnit;
 }
 
+/** Equipamentos desta unidade com impedimento aberto pelo próprio técnico. */
+export function impededEquipmentIds(work: UnitWork): Set<string> {
+  return new Set(
+    work.raisedTickets
+      .map((t) => t.equipmentId)
+      .filter((id): id is string => Boolean(id)),
+  );
+}
+
 /** Registros da unidade em uma divisão, com a OS de cada um junto. */
 export function recordsInBucket(
   work: UnitWork,
   bucket: WorkBucket,
 ): { record: OfflineMaintenanceRecord; workOrder: OfflineWorkOrder }[] {
+  const impeded = impededEquipmentIds(work);
   const result: { record: OfflineMaintenanceRecord; workOrder: OfflineWorkOrder }[] = [];
   for (const workOrder of work.workOrders) {
     // Trabalho "em aberto" só existe dentro de OS em aberto: numa OS fechada,
     // um registro que ficou em rascunho é histórico, não tarefa pendente.
     if (bucket === "aberto" && !isWorkOrderOpen(workOrder)) continue;
     for (const record of work.recordsByWorkOrder.get(workOrder.id) ?? []) {
-      if (bucketOfRecord(record) === bucket) result.push({ record, workOrder });
+      if (bucketOfRecord(record, impeded) === bucket) result.push({ record, workOrder });
     }
   }
   return result;
@@ -132,7 +153,11 @@ export type BucketCounts = Record<WorkBucket, number>;
 export function bucketCounts(work: UnitWork): BucketCounts {
   return {
     aberto: recordsInBucket(work, "aberto").length + work.assignedTickets.length,
-    impedimento: recordsInBucket(work, "impedimento").length + work.raisedTickets.length,
+    // O chamado que ele abriu conta uma vez só: se o equipamento tem registro,
+    // o registro já entrou como impedimento pela regra acima.
+    impedimento:
+      recordsInBucket(work, "impedimento").length +
+      work.raisedTickets.filter((t) => !t.equipmentId).length,
     concluido: recordsInBucket(work, "concluido").length,
   };
 }

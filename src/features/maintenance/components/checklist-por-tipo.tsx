@@ -28,9 +28,12 @@ export type ChecklistGroup = {
 export function ChecklistPorTipo({
   groups,
   disabled,
+  onChanged,
 }: {
   groups: ChecklistGroup[];
   disabled?: boolean;
+  /** Avisa a tela que algo foi alterado — base do botão "Salvar alterações". */
+  onChanged?: () => void;
 }) {
   if (groups.length === 0) return null;
 
@@ -68,6 +71,7 @@ export function ChecklistPorTipo({
                     item={item}
                     recordIds={group.recordIds}
                     disabled={disabled}
+                    onChanged={onChanged}
                   />
                 ))}
               </ul>
@@ -83,10 +87,12 @@ function ChecklistRow({
   item,
   recordIds,
   disabled,
+  onChanged,
 }: {
   item: { id: string; label: string; checked: boolean };
   recordIds: string[];
   disabled?: boolean;
+  onChanged?: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
 
@@ -96,16 +102,17 @@ function ChecklistRow({
         id={`chk-${item.id}`}
         checked={item.checked}
         disabled={disabled || isPending}
-        onCheckedChange={(checked) =>
-          startTransition(() =>
+        onCheckedChange={(checked) => {
+          onChanged?.();
+          return startTransition(() =>
             setGroupChecklistItemOffline({
               recordIds,
               templateItemId: item.id,
               label: item.label,
               checked: checked === true,
             }),
-          )
-        }
+          );
+        }}
       />
       <label htmlFor={`chk-${item.id}`} className="text-sm leading-5">
         {item.label}

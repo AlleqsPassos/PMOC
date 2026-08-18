@@ -1,8 +1,8 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CircleCheck, Play } from "lucide-react";
+import { CircleCheck, Play, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
@@ -11,6 +11,7 @@ import {
   startMaintenanceRecordsOffline,
 } from "@/features/maintenance/offline-actions";
 import { PREVENTIVE_MEASUREMENT_KEYS } from "@/features/maintenance/schema";
+import { requestSync } from "@/lib/offline/sync-engine";
 import { MeasurementGrid } from "@/features/maintenance/components/measurement-grid";
 import {
   ChecklistPorTipo,
@@ -50,6 +51,11 @@ export function AmbientePreventivaView({
   const router = useRouter();
   const [isStarting, startStarting] = useTransition();
   const [isFinishing, startFinishing] = useTransition();
+  // Cada campo já grava sozinho ao sair (e a fila offline garante que nada se
+  // perde). O botão existe para o técnico ter onde dizer "terminei de mexer" —
+  // ele confirma, empurra a fila e devolve para a unidade. Sem ele, revisar um
+  // ambiente concluído não tinha fim visível.
+  const [dirty, setDirty] = useState(false);
 
   const data = useLiveQuery(async () => {
     const [
@@ -212,8 +218,8 @@ export function AmbientePreventivaView({
   return (
     <div className="flex flex-col gap-6">
       <PageBackHeader
-        backHref={`/minhas-atividades/${unitId}/preventivas`}
-        backLabel="Preventivas"
+        backHref={`/minhas-atividades/${unitId}`}
+        backLabel={data.unitName}
         title={data.environmentName}
         subtitle={data.unitName}
         actions={
@@ -273,13 +279,38 @@ export function AmbientePreventivaView({
                     recordId={record.id}
                     types={data.gridTypes}
                     measurements={measurements}
+                    onChanged={() => setDirty(true)}
                   />
                 </div>
               ))}
             </CardContent>
           </Card>
 
-          <ChecklistPorTipo groups={data.checklistGroups} />
+          <ChecklistPorTipo
+            groups={data.checklistGroups}
+            onChanged={() => setDirty(true)}
+          />
+
+          {dirty && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // Tira o foco do campo em edição para o `onBlur` gravar antes
+                  // de sairmos da tela — sem isto, o último valor digitado
+                  // ficaria só na caixa.
+                  (document.activeElement as HTMLElement | null)?.blur();
+                  requestSync();
+                  setDirty(false);
+                  toast.success("Alterações salvas.");
+                  router.push(`/minhas-atividades/${unitId}`);
+                }}
+              >
+                <Save className="size-4" />
+                Salvar alterações
+              </Button>
+            </div>
+          )}
 
           {!finished && (
             <div className="flex justify-end">
@@ -289,7 +320,7 @@ export function AmbientePreventivaView({
                   startFinishing(async () => {
                     await completeMaintenanceRecordsOffline(data.openRecordIds);
                     toast.success(`${data.environmentName} concluído.`);
-                    router.push(`/minhas-atividades/${unitId}/preventivas`);
+                    router.push(`/minhas-atividades/${unitId}`);
                   })
                 }
               >

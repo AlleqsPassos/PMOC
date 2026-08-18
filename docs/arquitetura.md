@@ -19,6 +19,7 @@
 | 10 | O atendimento do técnico (corretiva e preventiva com formas próprias, ciclo de vida da OS, catálogo de peças, equipamentos do técnico) | ✅ Concluída |
 | 11 | O celular do técnico (divisão em aberto/impedimentos/concluídos, foto obrigatória travando, peça por diálogo, navegação mobile) | ✅ Concluída |
 | 12 | Ajustes do teste no celular (impedimento trava até o admin liberar, concluído volta a ser editável, alvos de toque, data no selo de sync) | ✅ Concluída |
+| 13 | Segunda rodada no celular (concluídos por ambiente, impedimento tira o aparelho dos concluídos, cores por divisão, voltar direto para a unidade) | ✅ Concluída |
 | — | Deploy inicial no Vercel | ✅ Concluída — `https://pmoc-plus.vercel.app`, projeto `alex-6e84/pmoc-plus` conectado ao repo GitHub (auto-deploy a cada push em `master`) |
 
 ## Contexto
@@ -590,6 +591,20 @@ Os demais itens, todos de percurso:
 - **Selo de sincronização com data** — "Sincronizado · hoje 22:54", ou `dd/MM HH:mm` quando não é hoje. O selo respondia "deu certo?" mas não "de quando é o que estou vendo?", que é a pergunta de quem passa o dia em campo sem sinal.
 
 Verificado: `npm run build --webpack` + `npm run lint` limpos; conferido em viewport de celular com a conta de teste — a unidade abrindo em "Em aberto" com o menu de Equipamentos dentro dela, o selo mostrando "hoje 22:54", o atendimento travado exibindo o cartão de bloqueio com os três campos de laudo desabilitados e nenhum botão de ação, o botão de voltar medindo 44px de altura, e a página da OS listando os dois equipamentos como "Aguardando peça". O botão "Liberar para o técnico" foi conferido pelo **avesso**: aberto com a conta do técnico, a linha mostra o selo e **não** mostra o botão, que é o gate de `manage_work_orders` funcionando; a renderização com a conta de administrador não foi vista nesta sessão porque a automação de clique do navegador não respondeu para trocar de conta.
+
+### FASE 13 — Segunda rodada no celular ✅ concluída
+
+Mais uma lista curta do usuário testando no aparelho, no mesmo dia da Fase 12. Nenhuma migration.
+
+- **Concluídos passou a listar o ambiente, não cada aparelho.** Quatro linhas apontando para a mesma sala não são quatro destinos — eram a mesma tela repetida quatro vezes. A preventiva agrupa por ambiente (com a contagem de equipamentos quando é mais de um); a corretiva continua por equipamento, que é o que ela é. Cada linha ganhou um botão **Visualizar**, para deixar explícito que ali se abre para conferir, e não para refazer.
+- **O aparelho com impedimento sai dos concluídos.** Era o furo mais concreto: durante a preventiva o técnico abre um impedimento num equipamento, o registro da sala é concluído, e o aparelho defeituoso continuava contado como concluído — escondendo justamente a exceção. `bucketOfRecord` passou a receber o conjunto de equipamentos com chamado aberto pelo próprio técnico (`impededEquipmentIds`), e quem tem impedimento cai na divisão de impedimentos mesmo com o registro fechado.
+- **Cor por divisão** (`components/shared/work-bucket-badge.tsx`): verde para concluído e para "OS fechada", vermelho para impedido, azul para em aberto. Com tudo em cinza, distinguir exigia ler a palavra; quem está de pé numa casa de máquinas bate o olho. Tons explícitos (emerald/red/sky) e não os tokens do tema, porque o significado é semântico e precisa sobreviver aos dois modos.
+- **Voltar vai direto para a unidade.** A lista intermediária ("Preventivas"/"Corretivas") é um passo de escolha, não um lugar onde se fica — voltar para ela obrigava um segundo toque para chegar onde ele queria. Vale também depois de concluir um ambiente.
+- **"Salvar alterações"** aparece no fim do ambiente assim que algo é alterado. Os campos continuam gravando sozinhos ao sair (a fila offline é que garante que nada se perde); o botão dá o **fim visível** que faltava para quem entrou só para revisar — ele tira o foco do campo em edição para o `onBlur` gravar, empurra a fila e devolve para a unidade.
+- **"Impedimento" virou "Abrir impedimento"** — o rótulo anterior parecia um selo de estado, não uma ação.
+- **Início** — "Chamados e ordens de serviço atribuídos a você **hoje**".
+
+Verificado: build/lint limpos; conferido em viewport de celular com a conta de teste — Início mostrando "1 impedimento / 3 concluídos" em Hospital de Base 02 (o aparelho com impedimento saiu dos concluídos, que era o ponto), a aba Concluídos listando três ambientes em vez de quatro aparelhos, cada um com "Visualizar" e o selo verde "OS fechada", a aba Impedimentos com o aparelho em vermelho "Parado", as cores conferidas por `getComputedStyle`, e o ambiente abrindo com "Abrir impedimento", botão de voltar apontando para a unidade e "Salvar alterações" surgindo depois de editar uma medição.
 
 ### Fora de escopo do MVP (explícito no briefing original)
 Billing/assinatura, controle de estoque, portal do cliente, QR codes, integração WhatsApp API, push notifications nativas, assinatura digital/e-signature, exportação de laudo em PDF avulso (fora do fluxo de PMOC), apps nativos (iOS/Android) — só PWA. Arquitetura deliberadamente deixa pontos de extensão (campos nullable, FKs opcionais) para que nenhum desses itens exija migração destrutiva quando for priorizado.

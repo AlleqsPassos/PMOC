@@ -109,7 +109,10 @@ export function AtendimentoCorretiva({
   // material não muda o fato de que ele espera material. Quem destrava é o
   // administrador, na página da OS ("Liberar para o técnico").
   const locked = record.resolution === "aguardando_peca";
-  const backHref = `/minhas-atividades/${workOrder.unitId}/corretivas`;
+  // Volta para a **unidade**, não para a lista de corretivas: a lista é um
+  // passo de escolha, não um lugar onde se fica, e o usuário pediu para não
+  // reaparecer nela ao voltar.
+  const backHref = `/minhas-atividades/${workOrder.unitId}`;
   const missingPhotos = missingRequiredCategories(
     CORRECTIVE_ATTACHMENT_CATEGORIES,
     data.attachments,
@@ -129,7 +132,7 @@ export function AtendimentoCorretiva({
     <div className="flex flex-col gap-6">
       <PageBackHeader
         backHref={backHref}
-        backLabel="Corretivas"
+        backLabel={workOrder.unitName}
         title={record.equipmentTag}
         subtitle={workOrder.unitName}
         actions={

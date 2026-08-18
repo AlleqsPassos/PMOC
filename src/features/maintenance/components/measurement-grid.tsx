@@ -24,11 +24,14 @@ export function MeasurementGrid({
   types,
   measurements,
   disabled,
+  onChanged,
 }: {
   recordId: string;
   types: OfflineMeasurementType[];
   measurements: OfflineMeasurement[];
   disabled?: boolean;
+  /** Avisa a tela que algo foi alterado — base do botão "Salvar alterações". */
+  onChanged?: () => void;
 }) {
   const [, startTransition] = useTransition();
 
@@ -53,6 +56,7 @@ export function MeasurementGrid({
                   const value = raw === "" ? null : Number(raw);
                   if (value !== null && Number.isNaN(value)) return;
                   if ((existing?.valueNumeric ?? null) === value) return;
+                  onChanged?.();
                   startTransition(() =>
                     setMeasurementValueOffline({
                       recordId,

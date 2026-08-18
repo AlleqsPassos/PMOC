@@ -49,7 +49,7 @@ export default async function InicioPage() {
         <p className="text-muted-foreground text-sm">
           {isDispatcher
             ? "Tudo que está em aberto, do mais urgente para o menos. Designe um técnico direto na linha."
-            : "Chamados e ordens de serviço atribuídos a você."}
+            : "Chamados e ordens de serviço atribuídos a você hoje."}
         </p>
       </div>
 

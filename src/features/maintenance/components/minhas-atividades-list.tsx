@@ -1,13 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  CheckCircle2,
-  ChevronRight,
-  FileCheck2,
-  ListChecks,
-  TriangleAlert,
-} from "lucide-react";
+import { ChevronRight, FileCheck2 } from "lucide-react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { offlineDb } from "@/lib/offline/db";
 import {
@@ -15,6 +9,7 @@ import {
   loadWorkByUnit,
   readyToClose,
 } from "@/features/maintenance/offline-queries";
+import { WorkBucketBadge } from "@/components/shared/work-bucket-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -121,23 +116,17 @@ export function MinhasAtividadesList({
             </CardHeader>
             <CardContent className="flex flex-wrap items-center gap-2">
               {unit.aberto > 0 && (
-                <Badge variant="outline" className="gap-1">
-                  <ListChecks className="size-3" />
-                  {unit.aberto} em aberto
-                </Badge>
+                <WorkBucketBadge tone="aberto">{unit.aberto} em aberto</WorkBucketBadge>
               )}
               {unit.impedimento > 0 && (
-                <Badge variant="destructive" className="gap-1">
-                  <TriangleAlert className="size-3" />
-                  {unit.impedimento} impedimento
-                  {unit.impedimento > 1 ? "s" : ""}
-                </Badge>
+                <WorkBucketBadge tone="impedimento">
+                  {unit.impedimento} impedimento{unit.impedimento > 1 ? "s" : ""}
+                </WorkBucketBadge>
               )}
               {unit.concluido > 0 && (
-                <Badge variant="secondary" className="gap-1">
-                  <CheckCircle2 className="size-3" />
+                <WorkBucketBadge tone="concluido">
                   {unit.concluido} concluído{unit.concluido > 1 ? "s" : ""}
-                </Badge>
+                </WorkBucketBadge>
               )}
               {unit.prontasParaFechar > 0 && (
                 <Badge className="gap-1">
